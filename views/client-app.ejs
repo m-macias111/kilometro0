@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <%- include('partials/head') %>
+    <title>Kilómetro 0 | Mi Cuenta</title>
+    <style>
+        body { background-color: #f0f2f5; }
+        .dashboard-container { max-width: 1000px; margin: 3rem auto; display: grid; grid-template-columns: 280px 1fr; gap: 2rem; padding: 0 1rem; }
+        .menu-bar { background: linear-gradient(180deg, #1a7a3a 0%, #145a2b 100%); padding: 2rem 1.5rem; border-radius: 16px; box-shadow: var(--shadow-sm); display: flex; flex-direction: column; gap: 1rem; height: fit-content; }
+        .menu-item { padding: 1rem; border-radius: 8px; cursor: pointer; transition: 0.3s; font-weight: 600; color: rgba(255,255,255,0.75); display: flex; align-items: center; gap: 10px; }
+        .menu-item:hover, .menu-item.active { background: rgba(255,255,255,0.2); color: white; }
+
+        .content-area { background: white; padding: 2rem; border-radius: 16px; box-shadow: var(--shadow-sm); min-height: 500px; }
+        .content-panel { display: none; }
+        .content-panel.active { display: block; animation: fadeIn 0.4s ease; }
+
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+
+        .order-card { border: 1px solid #e8e8e8; border-radius: 12px; padding: 1.5rem; margin-bottom: 1rem; transition: 0.3s; }
+        .order-card:hover { border-color: var(--primary); }
+        .order-card .order-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 1rem; }
+        .status-badge { padding: 0.3rem 0.8rem; border-radius: 20px; font-size: 0.8rem; font-weight: 700; }
+        .status-PENDING { background: #fff3cd; color: #856404; }
+        .status-COMPLETED { background: #d1fae5; color: #065f46; }
+        .status-CANCELLED { background: #fee2e2; color: #991b1b; }
+
+        .qr-display { background: #f0fff0; border: 2px dashed var(--primary); padding: 1rem; border-radius: 8px; text-align: center; margin-top: 1rem; font-size: 1.1rem; font-weight: 700; letter-spacing: 2px; color: #1a7a3a; cursor: pointer; }
+        .qr-display:hover { background: #e0ffe0; }
+
+        .fav-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 1.5rem; }
+        .fav-card { background: white; border-radius: 12px; overflow: hidden; border: 1px solid #eee; transition: 0.3s; position: relative; }
+        .fav-card:hover { transform: translateY(-3px); box-shadow: var(--shadow-md); border-color: var(--primary); }
+        .fav-card img { width: 100%; height: 160px; object-fit: cover; }
+        .fav-card .card-info { padding: 1rem; }
+        .fav-card .remove-fav { position: absolute; top: 8px; right: 8px; background: rgba(255,255,255,0.9); border: none; border-radius: 50%; width: 30px; height: 30px; cursor: pointer; color: #e74c3c; display: flex; align-items: center; justify-content: center; transition: 0.2s; }
+        .fav-card .remove-fav:hover { background: #e74c3c; color: white; }
+
+        .profile-info { background: rgba(46,204,113,0.05); border: 1px solid rgba(46,204,113,0.2); padding: 1.5rem; border-radius: 12px; margin-bottom: 1.5rem; }
+
+        /* Modal QR */
+        .modal-overlay { position: fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); z-index:5000; display:none; justify-content:center; align-items:center; backdrop-filter:blur(3px); }
+        .modal-overlay.open { display:flex; }
+        .modal-box { background:white; padding:2.5rem; border-radius:16px; width:100%; max-width:360px; text-align:center; box-shadow: var(--shadow-md); }
+    </style>
+</head>
+<body>
+    <nav class="navbar" style="position:static; background:linear-gradient(90deg, #1a7a3a, #145a2b);">
+        <div class="logo" style="color:white;">
+            <i class="fa-solid fa-leaf" style="color:#8fff8f;"></i>
+            <span style="color:white;">Mi Cuenta</span>
+        </div>
+        <div class="nav-links">
+            <span style="font-weight:600; margin-right:1rem; color:white;"><%= client.name %> <%= client.lastName || '' %></span>
+            <button onclick="doLogout()" class="btn btn-outline" style="border-color:rgba(255,255,255,0.5); color:white;">Cerrar Sesión</button>
+        </div>
+    </nav>
+
+    <div class="dashboard-container">
+        <div class="menu-bar">
+            <div style="text-align:center; margin-bottom:0.5rem;">
+                <div style="width:70px; height:70px; border-radius:50%; background:rgba(255,255,255,0.15); display:flex; align-items:center; justify-content:center; margin:0 auto; font-size:2rem; color:white;">
+                    <i class="fa-solid fa-user"></i>
+                </div>
+                <p style="color:rgba(255,255,255,0.7); font-size:0.85rem; margin-top:8px;"><%= client.email %></p>
+            </div>
+            <div class="menu-item active" onclick="switchTab('tab-orders')"><i class="fa-solid fa-receipt"></i> Mis Pedidos</div>
+            <div class="menu-item" onclick="switchTab('tab-favorites')"><i class="fa-solid fa-heart"></i> Mis Favoritos</div>
+            <div class="menu-item" onclick="switchTab('tab-profile')"><i class="fa-solid fa-circle-user"></i> Mi Perfil</div>
+            <div class="menu-item" onclick="window.location.href='/'" style="margin-top:2rem;"><i class="fa-solid fa-arrow-left"></i> Ver Tienda</div>
+        </div>
+
+        <div class="content-area">
+
+            <!-- TAB: Pedidos -->
+            <div id="tab-orders" class="content-panel active">
+                <h2 style="margin-bottom:1.5rem;"><i class="fa-solid fa-receipt" style="color:var(--primary); margin-right:8px;"></i> Mis Pedidos</h2>
+
+                <% if(orders.length === 0) { %>
+                    <div style="text-align:center; padding:4rem 2rem; color:gray;">
+                        <i class="fa-solid fa-basket-shopping" style="font-size:4rem; margin-bottom:1rem; color:#ccc;"></i>
+                        <h3>Todavía no has hecho ningún pedido</h3>
+                        <p>Explora la tienda y haz tu primera compra local.</p>
+                        <a href="/" class="btn btn-primary" style="margin-top:1rem;">Ver Tienda</a>
+                    </div>
+                <% } else { %>
+                    <% orders.forEach(function(o) { %>
+                        <div class="order-card">
+                            <div class="order-header">
+                                <div>
+                                    <h4 style="margin:0 0 4px 0;">Pedido #<%= o.order_id %></h4>
+                                    <p style="margin:0; font-size:0.85rem; color:gray;">
+                                        <i class="fa-solid fa-calendar"></i>
+                                        <%= new Date(o.created_at).toLocaleDateString('es-ES', {day:'2-digit', month:'long', year:'numeric'}) %>
+                                    </p>
+                                </div>
+                                <div style="text-align:right;">
+                                    <span class="status-badge status-<%= o.status %>">
+                                        <% if(o.status === 'PENDING') { %><i class="fa-solid fa-clock"></i> Pendiente
+                                        <% } else if(o.status === 'COMPLETED') { %><i class="fa-solid fa-check-circle"></i> Completado
+                                        <% } else { %><i class="fa-solid fa-times-circle"></i> Cancelado<% } %>
+                                    </span>
+                                    <p style="margin:4px 0 0; font-weight:800; font-size:1.2rem; color:var(--primary);"><%= parseFloat(o.total_price).toFixed(2) %>€</p>
+                                </div>
+                            </div>
+
+                            <% if(o.items && o.items.length > 0) { %>
+                                <ul style="margin:0; padding-left:1.2rem; font-size:0.9rem; color:#555;">
+                                    <% o.items.filter(i => i.name).forEach(function(item) { %>
+                                        <li><%= item.name %> — <b><%= parseFloat(item.price).toFixed(2) %>€</b></li>
+                                    <% }); %>
+                                </ul>
+                            <% } %>
+
+                            <% if(o.status === 'PENDING') { %>
+                                <div class="qr-display" onclick="showQR('<%= o.qr_code %>')">
+                                    <i class="fa-solid fa-qrcode"></i> <%= o.qr_code %>
+                                    <p style="font-size:0.75rem; font-weight:400; margin:4px 0 0; color:#555;">Pulsa para ver el código QR completo</p>
+                                </div>
+                            <% } %>
+                        </div>
+                    <% }); %>
+                <% } %>
+            </div>
+
+            <!-- TAB: Favoritos -->
+            <div id="tab-favorites" class="content-panel">
+                <h2 style="margin-bottom:1.5rem;"><i class="fa-solid fa-heart" style="color:#e74c3c; margin-right:8px;"></i> Mis Favoritos</h2>
+
+                <% if(favorites.length === 0) { %>
+                    <div style="text-align:center; padding:4rem 2rem; color:gray;">
+                        <i class="fa-solid fa-heart-crack" style="font-size:4rem; margin-bottom:1rem; color:#ccc;"></i>
+                        <h3>No tienes favoritos guardados</h3>
+                        <p>Guarda productos usando el botón <i class="fa-solid fa-heart"></i> en las tarjetas de la tienda.</p>
+                        <a href="/" class="btn btn-primary" style="margin-top:1rem;">Explorar Tienda</a>
+                    </div>
+                <% } else { %>
+                    <div class="fav-grid" id="favGrid">
+                        <% favorites.forEach(function(p) { %>
+                            <div class="fav-card" id="fav-<%= p.id %>">
+                                <button class="remove-fav" onclick="removeFavorite(<%= p.id %>)" title="Quitar de favoritos">
+                                    <i class="fa-solid fa-xmark"></i>
+                                </button>
+                                <img src="<%= p.image_url %>" alt="<%= p.name %>">
+                                <div class="card-info">
+                                    <h5 style="margin:0 0 4px;"><%= p.name %></h5>
+                                    <p style="margin:0; font-size:0.8rem; color:gray; cursor:pointer;" onclick="window.location.href='/producer-profile?id=<%= p.producer_id %>'">
+                                        <i class="fa-solid fa-tractor"></i> <%= p.producer_name %>
+                                    </p>
+                                    <div style="display:flex; justify-content:space-between; align-items:center; margin-top:0.8rem;">
+                                        <span style="font-weight:800; color:var(--primary); font-size:1.1rem;"><%= parseFloat(p.price).toFixed(2) %>€</span>
+                                        <a href="/" class="btn btn-primary" style="padding:0.4rem 0.8rem; font-size:0.8rem;">
+                                            <i class="fa-solid fa-basket-shopping"></i> Comprar
+                                        </a>
+                                    </div>
+                                </div>
+                            </div>
+                        <% }); %>
+                    </div>
+                <% } %>
+            </div>
+
+            <!-- TAB: Perfil -->
+            <div id="tab-profile" class="content-panel">
+                <h2 style="margin-bottom:1.5rem;"><i class="fa-solid fa-circle-user" style="color:var(--primary); margin-right:8px;"></i> Mi Perfil</h2>
+                <div class="profile-info">
+                    <div style="display:flex; align-items:center; gap:1.5rem; flex-wrap:wrap;">
+                        <div style="width:80px; height:80px; border-radius:50%; background:var(--primary); display:flex; align-items:center; justify-content:center; font-size:2rem; color:white; font-weight:700; flex-shrink:0;">
+                            <%= client.name.charAt(0).toUpperCase() %>
+                        </div>
+                        <div>
+                            <h3 style="margin:0;"><%= client.name %> <%= client.lastName || '' %></h3>
+                            <p style="color:gray; margin:4px 0 0;"><i class="fa-solid fa-envelope"></i> <%= client.email %></p>
+                            <span style="background:#d1fae5; color:#065f46; padding:3px 10px; border-radius:20px; font-size:0.8rem; font-weight:700; margin-top:8px; display:inline-block;">
+                                <i class="fa-solid fa-check"></i> Cuenta activa
+                            </span>
+                        </div>
+                    </div>
+                </div>
+                <div style="background:#f9f9f9; border-radius:12px; padding:1.5rem;">
+                    <h4 style="margin-bottom:1rem; color:var(--text-light);"><i class="fa-solid fa-chart-simple"></i> Resumen de actividad</h4>
+                    <div style="display:grid; grid-template-columns:repeat(3, 1fr); gap:1rem; text-align:center;">
+                        <div style="background:white; padding:1.2rem; border-radius:8px; border:1px solid #eee;">
+                            <div style="font-size:2rem; font-weight:800; color:var(--primary);"><%= orders.length %></div>
+                            <div style="font-size:0.85rem; color:gray;">Pedidos totales</div>
+                        </div>
+                        <div style="background:white; padding:1.2rem; border-radius:8px; border:1px solid #eee;">
+                            <div style="font-size:2rem; font-weight:800; color:#f39c12;"><%= orders.filter(o => o.status === 'PENDING').length %></div>
+                            <div style="font-size:0.85rem; color:gray;">Pendientes</div>
+                        </div>
+                        <div style="background:white; padding:1.2rem; border-radius:8px; border:1px solid #eee;">
+                            <div style="font-size:2rem; font-weight:800; color:#e74c3c;"><%= favorites.length %></div>
+                            <div style="font-size:0.85rem; color:gray;">Favoritos</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <!-- Modal QR -->
+    <div class="modal-overlay" id="qrModal">
+        <div class="modal-box">
+            <h3 style="margin-bottom:0.5rem;"><i class="fa-solid fa-qrcode" style="color:var(--primary);"></i> Tu Código QR</h3>
+            <p style="color:gray; font-size:0.9rem; margin-bottom:1.5rem;">Muéstralo al productor cuando vayas a recoger tu pedido.</p>
+            <div id="qrModalCode" style="display:flex; justify-content:center; margin-bottom:1rem;"></div>
+            <p id="qrModalText" style="font-weight:700; font-size:1.1rem; letter-spacing:2px; color:#1a7a3a;"></p>
+            <button class="btn btn-outline" style="width:100%; margin-top:1rem;" onclick="closeQRModal()">Cerrar</button>
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    <script>
+        function doLogout() {
+            fetch('/api/logout', { method: 'POST' }).then(() => {
+                localStorage.removeItem('km0_user');
+                window.location.href = '/';
+            });
+        }
+
+        function switchTab(tabId, updateHistory = true) {
+            document.querySelectorAll('.content-panel').forEach(el => el.classList.remove('active'));
+            document.querySelectorAll('.menu-item').forEach(el => el.classList.remove('active'));
+            const panel = document.getElementById(tabId);
+            if (panel) panel.classList.add('active');
+            const menuItem = document.querySelector(`[onclick*="switchTab('${tabId}')"]`);
+            if (menuItem) menuItem.classList.add('active');
+            if (updateHistory) history.pushState({ tab: tabId }, '', '#' + tabId);
+        }
+
+        window.addEventListener('popstate', (e) => {
+            const tab = (e.state && e.state.tab) || window.location.hash.substring(1) || 'tab-orders';
+            if (document.getElementById(tab)) switchTab(tab, false);
+        });
+
+        window.addEventListener('DOMContentLoaded', () => {
+            const hash = window.location.hash.substring(1);
+            if (hash && document.getElementById(hash)) switchTab(hash, false);
+            else history.replaceState({ tab: 'tab-orders' }, '', '#tab-orders');
+        });
+
+        // ── Modal QR ──────────────────────────────────────────────
+        let qrInstance = null;
+
+        function showQR(code) {
+            const container = document.getElementById('qrModalCode');
+            container.innerHTML = '';
+            qrInstance = new QRCode(container, {
+                text: code,
+                width: 200, height: 200,
+                colorDark: '#1a7a3a', colorLight: '#ffffff',
+                correctLevel: QRCode.CorrectLevel.M
+            });
+            document.getElementById('qrModalText').innerText = code;
+            document.getElementById('qrModal').classList.add('open');
+        }
+
+        function closeQRModal() {
+            document.getElementById('qrModal').classList.remove('open');
+            document.getElementById('qrModalCode').innerHTML = '';
+        }
+
+        document.getElementById('qrModal').addEventListener('click', function(e) {
+            if (e.target === this) closeQRModal();
+        });
+
+        // ── Quitar favorito ───────────────────────────────────────
+        function removeFavorite(productId) {
+            fetch('/api/favorites/toggle', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ product_id: productId })
+            }).then(r => r.json()).then(data => {
+                if (data.success) {
+                    const card = document.getElementById('fav-' + productId);
+                    if (card) card.remove();
+                    // Si no quedan favoritos, mostrar mensaje vacío
+                    const grid = document.getElementById('favGrid');
+                    if (grid && grid.children.length === 0) {
+                        grid.outerHTML = `<div style="text-align:center; padding:4rem 2rem; color:gray;">
+                            <i class="fa-solid fa-heart-crack" style="font-size:4rem; margin-bottom:1rem; color:#ccc;"></i>
+                            <h3>No tienes favoritos guardados</h3>
+                        </div>`;
+                    }
+                }
+            });
+        }
+    </script>
+    <%- include('partials/footer') %>
+</body>
+</html>

@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <%- include('partials/head') %>
+    <title>Kilómetro 0 | Información</title>
+</head>
+<body>
+    <nav class="navbar glass">
+        <div class="logo">
+            <i class="fa-solid fa-leaf"></i>
+            <span>Kilómetro 0</span>
+        </div>
+        <div class="nav-links">
+            <a href="/">Volver a la Tienda</a>
+            <a href="/login" class="btn btn-outline">Iniciar Sesión</a>
+        </div>
+    </nav>
+
+    <header class="hero">
+        <div class="hero-content">
+            <h1 class="gradient-text">Conectamos el campo directamente con tu mesa.</h1>
+            <p>Nuestra plataforma permite a los productores locales ofrecer su género sin intermediarios. Apoya el comercio justo, adquiere productos frescos y reduce tu huella ecológica a través de la compra de proximidad.</p>
+            <div class="hero-buttons">
+                <a href="/" class="btn btn-large btn-primary shadow-hover">Ver Zonas de Venta <i class="fa-solid fa-arrow-right"></i></a>
+            </div>
+        </div>
+        <div class="hero-visual">
+            <div class="abstract-shape shape-1"></div>
+            <div class="abstract-shape shape-2"></div>
+            <img src="https://images.unsplash.com/photo-1595856453084-9ffc129eeb13?auto=format&fit=crop&w=600" alt="Agricultor" class="floating-img">
+        </div>
+    </header>
+
+    <section id="faq" class="container mt-section">
+        <h2 class="section-title">Preguntas Frecuentes</h2>
+        <div class="faq-grid">
+            <div class="faq-card glass">
+                <h3><i class="fa-solid fa-truck-fast"></i> ¿Cómo recojo mi compra?</h3>
+                <p>Las entregas se acuerdan mediante el punto de venta físico de cada productor. Cero envíos innecesarios.</p>
+            </div>
+            <div class="faq-card glass">
+                <h3><i class="fa-solid fa-qrcode"></i> ¿Cómo valido mi pedido?</h3>
+                <p>Una vez completes la reserva, tendrás un código QR asociado de forma única. Al enseñárselo al productor, este escaneará el código para cerrar la compra garantizando fiabilidad máxima.</p>
+            </div>
+        </div>
+    </section>
+
+    <footer>
+        <div class="container text-center">
+            <p>&copy; 2026 Kilómetro 0. Proyecto PATG - UPM.</p>
+        </div>
+    </footer>
+    <%- include('partials/footer') %>
+</body>
+</html>

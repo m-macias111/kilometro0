@@ -1,0 +1,502 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <%- include('partials/head') %>
+    <title>Kilómetro 0 | Tienda</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <style>
+        body { background: #f4f6f8; overflow: hidden; }
+        .dashboard { display: grid; grid-template-columns: 250px 1fr; height: 100vh; }
+        
+        .side-nav { background: linear-gradient(180deg, #1a7a3a 0%, #145a2b 100%); padding: 2rem 1.5rem; display: flex; flex-direction: column; gap: 1rem; border-right: none; }
+        .side-nav .logo { margin-bottom: 2rem; color: white; }
+        .side-nav .logo i { color: #8fff8f; }
+        .side-nav .logo span { color: white; }
+        .nav-item { padding: 1rem; border-radius: 12px; cursor: pointer; font-weight: 600; color: rgba(255,255,255,0.8); display: flex; align-items: center; gap: 12px; transition: 0.3s; }
+        .nav-item:hover, .nav-item.active { background: rgba(255,255,255,0.2); color: white; }
+        
+        .main-content { padding: 2rem; overflow-y: auto; position: relative; }
+        .top-bar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem; background: #1e8c45; padding: 1rem 2rem; border-radius: 16px; box-shadow: var(--shadow-sm); }
+        
+        .view-panel { display: none; animation: fadeIn 0.4s ease; }
+        .view-panel.active { display: block; }
+        
+        .map-frame { height: calc(100vh - 230px); width: 100%; border-radius: 20px; overflow: hidden; box-shadow: 0 10px 30px rgba(0,0,0,0.08); border: 4px solid white; position: relative;}
+        #map { height: 100%; width: 100%; }
+        
+        .products-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 1.5rem; }
+        .produce-card { background: white; border-radius: 16px; overflow: hidden; box-shadow: var(--shadow-sm); transition: 0.3s; border: 1px solid #f0f0f0; position:relative; }
+        .produce-card:hover { transform: translateY(-5px); box-shadow: var(--shadow-md); border-color: var(--primary); }
+        .produce-card img { width: 100%; height: 200px; object-fit: cover; }
+        .produce-card .card-badge { position:absolute; top:12px; left:12px; background:var(--primary); color:white; padding:4px 10px; border-radius:20px; font-size:0.75rem; font-weight:700; }
+        .produce-card .card-price { position:absolute; top:12px; right:12px; background:rgba(0,0,0,0.7); color:white; padding:6px 12px; border-radius:20px; font-size:1rem; font-weight:800; }
+        .produce-info { padding: 1.2rem 1.5rem; }
+        .produce-info h4 { margin-bottom: 0.3rem; font-size: 1.1rem; }
+        .producer-link { color: var(--text-light); font-size: 0.85rem; margin-bottom: 0.8rem; display: block; cursor: pointer; transition: 0.3s; }
+        .producer-link:hover { color: var(--primary); text-decoration: underline; }
+        .pickup-tag { display:inline-flex; align-items:center; gap:4px; font-size:0.78rem; color:#555; background:#f0f7f0; padding:3px 8px; border-radius:6px; margin-bottom:0.8rem; }
+        
+        .cart-sidebar { position: fixed; right: -400px; top: 0; width: 400px; height: 100vh; background: white; box-shadow: -5px 0 30px rgba(0,0,0,0.1); z-index: 3000; transition: right 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275); display: flex; flex-direction: column; }
+        .cart-sidebar.open { right: 0; }
+        .cart-header { padding: 2rem; border-bottom: 1px solid #eee; display: flex; justify-content: space-between; align-items: center; }
+        .cart-body { flex: 1; padding: 2rem; overflow-y: auto; }
+        .cart-footer { padding: 2rem; border-top: 1px solid #eee; background: #f9f9f9; }
+        
+        .cart-item { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; border-bottom: 1px dashed #eee; padding-bottom: 1rem; }
+        .cart-backdrop { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.4); z-index: 2999; display: none; backdrop-filter: blur(3px); }
+        .cart-backdrop.open { display: block; }
+    </style>
+</head>
+<body>
+    <div class="dashboard">
+        <div class="side-nav">
+            <div class="logo">
+                <i class="fa-solid fa-leaf"></i>
+                <span>Kilómetro 0</span>
+            </div>
+            
+            <div class="nav-item active" onclick="switchView('map-view', this)">
+                <i class="fa-solid fa-map-location-dot"></i> Vista Mapa
+            </div>
+            <div class="nav-item" onclick="switchView('products-view', this)">
+                <i class="fa-solid fa-boxes-stacked"></i> Ver Productos
+            </div>
+            <div class="nav-item" onclick="window.location.href='/about'">
+                <i class="fa-solid fa-circle-info"></i> Información
+            </div>
+        </div>
+
+        <div class="main-content">
+            <div class="top-bar">
+                <div style="display:flex; flex-direction:column; gap:10px; flex:1; margin-right:2rem;">
+                    <div style="display:flex; width:100%; gap:10px;">
+                        <input type="text" id="globalSearch" placeholder="Busca tomates, quesos, miel, nombre de granja..." style="flex:1; padding:10px; border:none; border-radius:8px; font-family:'Inter'; outline:none;">
+                        <button class="btn" style="background:white; color:#1a7a3a; font-weight:700; border:none; padding:0.5rem 1rem; border-radius:8px;" onclick="applyFilters()"><i class="fa-solid fa-search"></i> Buscar</button>
+                    </div>
+                    <div style="display:flex; align-items:center; gap:15px;">
+                        <button class="btn" id="locationBtn" onclick="getUserLocation()" style="white-space:nowrap; background:rgba(255,255,255,0.2); color:white; border:1px solid rgba(255,255,255,0.4); padding:0.4rem 0.8rem; border-radius:8px; font-weight:600; font-size:0.85rem;"><i class="fa-solid fa-location-crosshairs"></i> Mi Ubicación</button>
+                        <label for="distanceFilter" style="white-space:nowrap; font-weight:bold; font-size:0.85rem; color:white;">Radio: <span id="distanceValue">200</span> km</label>
+                        <input type="range" id="distanceFilter" min="1" max="200" step="1" value="200" style="flex:1; accent-color:#8fff8f;" oninput="document.getElementById('distanceValue').innerText=this.value; applyFilters();">
+                    </div>
+                </div>
+                
+                <div style="display:flex; gap:1.5rem; align-items:center;">
+                    <button class="btn" onclick="toggleCart()" style="border-radius: 50%; width: 45px; height: 45px; padding: 0; position: relative; background:white; color:#1a7a3a; border:none;">
+                        <i class="fa-solid fa-basket-shopping"></i>
+                        <span id="cartBadge" style="position:absolute; top:-5px; right:-5px; background:#ff6b35; color:white; border-radius:50%; width:20px; height:20px; font-size:0.7rem; display:flex; align-items:center; justify-content:center;">0</span>
+                    </button>
+                    
+                    <div id="authContainer">
+                        <a href="/login" class="btn" style="padding: 0.5rem 1rem; background:white; color:#1a7a3a; font-weight:700; border:none; border-radius:8px;">Entrar</a>
+                    </div>
+                    <div id="dashboardLink" style="display:none;">
+                        <a href="/client-app" class="btn" style="padding: 0.5rem 1rem; background:rgba(255,255,255,0.2); color:white; font-weight:700; border:1px solid rgba(255,255,255,0.4); border-radius:8px; font-size:0.85rem;" title="Mi cuenta">
+                            <i class="fa-solid fa-circle-user"></i>
+                        </a>
+                    </div>
+                </div>
+            </div>
+
+            <div id="map-view" class="view-panel active">
+                <div style="display:flex; gap:10px; margin-bottom:10px; align-items:center;">
+                    <span style="font-weight:700; font-size:0.9rem; white-space:nowrap;"><i class="fa-solid fa-filter"></i> Filtrar mapa:</span>
+                    <select id="mapCategoryFilter" onchange="applyFilters()" style="padding:8px 12px; border:1px solid #ddd; border-radius:8px; font-family:'Inter'; font-size:0.9rem;">
+                        <option value="Todas">Todas las categorías</option>
+                        <option value="Verduras">🥬 Verduras</option>
+                        <option value="Frutas">🍊 Frutas</option>
+                        <option value="Carnes">🥩 Carnes</option>
+                        <option value="Lácteos">🧀 Lácteos</option>
+                        <option value="Miel">🍯 Miel</option>
+                        <option value="Bebidas">🍷 Bebidas</option>
+                        <option value="Otros">📦 Otros</option>
+                    </select>
+                    <input type="text" id="mapSearch" placeholder="Buscar producto en mapa..." oninput="applyFilters()" style="flex:1; padding:8px 12px; border:1px solid #ddd; border-radius:8px; font-family:'Inter'; font-size:0.9rem;">
+                </div>
+                <div class="map-frame">
+                    <div id="map"></div>
+                </div>
+            </div>
+
+            <div id="products-view" class="view-panel">
+                <h2 style="margin-bottom: 1rem;">Nuestra Despensa</h2>
+                <div style="display:flex; gap:10px; margin-bottom:2rem; overflow-x:auto; padding-bottom:10px;">
+                    <button class="btn btn-primary" onclick="filterCategory('Todas')">Todas</button>
+                    <button class="btn btn-outline" onclick="filterCategory('Verduras')">Verduras</button>
+                    <button class="btn btn-outline" onclick="filterCategory('Frutas')">Frutas</button>
+                    <button class="btn btn-outline" onclick="filterCategory('Carnes')">Carnes</button>
+                    <button class="btn btn-outline" onclick="filterCategory('Lácteos')">Lácteos</button>
+                    <button class="btn btn-outline" onclick="filterCategory('Miel')">Miel</button>
+                    <button class="btn btn-outline" onclick="filterCategory('Bebidas')">Bebidas</button>
+                    <button class="btn btn-outline" onclick="filterCategory('Otros')">Otros</button>
+                </div>
+                <div class="products-grid" id="productsGrid"></div>
+            </div>
+        </div>
+    </div>
+
+    <div class="cart-backdrop" onclick="toggleCart()"></div>
+    <div class="cart-sidebar" id="cartSidebar">
+        <div class="cart-header">
+            <h2><i class="fa-solid fa-basket-shopping"></i> Tu Cesta</h2>
+            <i class="fa-solid fa-xmark" style="font-size: 1.5rem; cursor:pointer;" onclick="toggleCart()"></i>
+        </div>
+        <div class="cart-body" id="cartItems">
+            <p style="color: gray;">Tu cesta está vacía.</p>
+        </div>
+        <div class="cart-footer" id="cartFooter">
+            <h3 style="display: flex; justify-content: space-between; margin-bottom: 1rem;">Total: <span id="cartTotal">0.00€</span></h3>
+            <button class="btn btn-primary" style="width: 100%;" onclick="checkout()">Tramitar Reserva</button>
+        </div>
+    </div>
+
+    <!-- Toast Notification -->
+    <div id="toast" style="position:fixed; bottom:-100px; left:50%; transform:translateX(-50%); background:#333; color:white; padding:12px 24px; border-radius:30px; font-weight:600; box-shadow:0 5px 15px rgba(0,0,0,0.2); transition:bottom 0.4s; z-index:9999;"></div>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    <script>
+        // === DATA ===
+        const productsData = <%- JSON.stringify(products) %>;
+        const producersData = <%- JSON.stringify(producers) %>;
+
+        // === AUTH ===
+        const userStr = localStorage.getItem('km0_user');
+        let currentUser = null;
+        let userFavorites = new Set();
+
+        if(userStr) {
+            currentUser = JSON.parse(userStr);
+            document.getElementById('authContainer').innerHTML = `
+                <div style="font-weight:600; color:white; cursor:pointer;" onclick="logout()">
+                    <i class="fa-solid fa-circle-user" style="color:#8fff8f; font-size:1.2rem; margin-right:5px;"></i> ${currentUser.name}
+                    <span style="font-size:0.8rem; color:rgba(255,255,255,0.7); display:block;">Cerrar sesión</span>
+                </div>`;
+            // Mostrar enlace al dashboard según rol
+            if(currentUser.role === 'cliente') {
+                document.getElementById('dashboardLink').style.display = 'block';
+                // Cargar favoritos del usuario
+                fetch('/api/favorites').then(r => r.json()).then(data => {
+                    if(data.favorites) {
+                        data.favorites.forEach(f => userFavorites.add(f.id));
+                    }
+                });
+            } else if(currentUser.role === 'productor') {
+                document.getElementById('dashboardLink').innerHTML = `<a href="/producer-app" class="btn" style="padding: 0.5rem 1rem; background:rgba(255,255,255,0.2); color:white; font-weight:700; border:1px solid rgba(255,255,255,0.4); border-radius:8px; font-size:0.85rem;"><i class="fa-solid fa-tractor"></i></a>`;
+                document.getElementById('dashboardLink').style.display = 'block';
+            }
+        }
+        function logout() {
+            fetch('/api/logout', { method: 'POST' }).then(() => {
+                localStorage.removeItem('km0_user');
+                window.location.reload();
+            });
+        }
+
+        function toggleFavorite(productId, btn) {
+            if(!currentUser || currentUser.role !== 'cliente') {
+                window.location.href = '/login';
+                return;
+            }
+            fetch('/api/favorites/toggle', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ product_id: productId })
+            }).then(r => r.json()).then(data => {
+                if(data.success) {
+                    if(data.action === 'added') {
+                        userFavorites.add(productId);
+                        btn.style.color = '#e74c3c';
+                        btn.title = 'Quitar de favoritos';
+                    } else {
+                        userFavorites.delete(productId);
+                        btn.style.color = 'rgba(255,255,255,0.8)';
+                        btn.title = 'Guardar en favoritos';
+                    }
+                }
+            });
+        }
+
+        // === UI UTILS ===
+        function showToast(msg, isError=false) {
+            const t = document.getElementById('toast');
+            t.innerText = msg;
+            t.style.background = isError ? '#e74c3c' : '#2ecc71';
+            t.style.bottom = '20px';
+            setTimeout(() => t.style.bottom = '-100px', 3000);
+        }
+
+        // === SPA VIEW SWITCHING (With History API) ===
+        function switchView(viewId, element) {
+            document.querySelectorAll('.view-panel').forEach(v => v.classList.remove('active'));
+            document.querySelectorAll('.nav-item').forEach(v => v.classList.remove('active'));
+            document.getElementById(viewId).classList.add('active');
+            if(element) element.classList.add('active');
+            if(viewId === 'map-view') setTimeout(() => map.invalidateSize(), 100);
+            
+            if(window.location.hash !== '#' + viewId) {
+                window.history.pushState(null, '', '#' + viewId);
+            }
+        }
+        
+        window.addEventListener('popstate', () => {
+            const hash = window.location.hash.replace('#', '') || 'map-view';
+            let navEl = null;
+            document.querySelectorAll('.nav-item').forEach(n => {
+                if(n.getAttribute('onclick') && n.getAttribute('onclick').includes(hash)) navEl = n;
+            });
+            switchView(hash, navEl);
+        });
+
+        // === CART (Persistent) ===
+        let cart = JSON.parse(localStorage.getItem('km0_cart')) || [];
+        const sidebar = document.getElementById('cartSidebar');
+        const backdrop = document.querySelector('.cart-backdrop');
+
+        function toggleCart() { sidebar.classList.toggle('open'); backdrop.classList.toggle('open'); }
+
+        function addToCart(id) {
+            const product = productsData.find(p => p.id === id);
+            cart.push(product);
+            localStorage.setItem('km0_cart', JSON.stringify(cart));
+            updateCartUI();
+            showToast('Producto añadido a la cesta');
+        }
+
+        function updateCartUI() {
+            document.getElementById('cartBadge').innerText = cart.length;
+            const body = document.getElementById('cartItems');
+            if(cart.length === 0) {
+                body.innerHTML = '<p style="color:gray;">Tu cesta está vacía.</p>';
+                document.getElementById('cartFooter').style.display = '';
+            } else {
+                let html = '', total = 0;
+                cart.forEach(p => {
+                    total += p.price;
+                    html += `<div class="cart-item"><div><h4 style="margin:0;">${p.name}</h4><span style="font-size:0.8rem; color:gray;">${p.producer_name}</span></div><div style="font-weight:bold; color:var(--primary);">${p.price.toFixed(2)}€</div></div>`;
+                });
+                body.innerHTML = html;
+                document.getElementById('cartTotal').innerText = total.toFixed(2) + '€';
+            }
+        }
+
+        function checkout() {
+            if(cart.length === 0) return showToast('La cesta está vacía', true);
+            const u = localStorage.getItem('km0_user');
+            if(u) {
+                processOrder(JSON.parse(u).email);
+            } else {
+                // Show guest/register options
+                document.getElementById('cartItems').innerHTML = `
+                    <div style="padding:1rem 0;">
+                        <h3 style="margin-bottom:1rem;">¿Cómo quieres continuar?</h3>
+                        <a href="/login" class="btn btn-primary" style="width:100%; margin-bottom:0.8rem; display:block; text-align:center;"><i class="fa-solid fa-user"></i> Iniciar Sesión / Registrarme</a>
+                        <div style="text-align:center; color:gray; margin:1rem 0; font-weight:600;">— o comprar como invitado —</div>
+                        <div style="margin-bottom:0.8rem;"><label style="font-weight:600; display:block; margin-bottom:0.3rem;">Tu correo electrónico</label><input type="email" id="guestEmail" placeholder="tu@email.com" style="width:100%; padding:0.8rem; border:1px solid #ddd; border-radius:8px;"></div>
+                        <div style="margin-bottom:1rem;"><label style="font-weight:600; display:block; margin-bottom:0.3rem;">Repite tu correo</label><input type="email" id="guestEmailConfirm" placeholder="tu@email.com" style="width:100%; padding:0.8rem; border:1px solid #ddd; border-radius:8px;"></div>
+                        <small id="guestEmailError" style="color:red; display:none; margin-bottom:0.5rem;">Los correos no coinciden o el formato es inválido.</small>
+                        <button class="btn btn-primary" style="width:100%;" onclick="submitGuestOrder()"><i class="fa-solid fa-paper-plane"></i> Confirmar como Invitado</button>
+                        <button class="btn btn-outline" style="width:100%; margin-top:0.5rem;" onclick="updateCartUI()"><i class="fa-solid fa-arrow-left"></i> Volver a la cesta</button>
+                    </div>`;
+                document.getElementById('cartFooter').style.display = 'none';
+            }
+        }
+
+        function submitGuestOrder() {
+            const email = document.getElementById('guestEmail').value;
+            const emailConfirm = document.getElementById('guestEmailConfirm').value;
+            if(!email || email !== emailConfirm || !/^[^@]+@[^@]+\.[a-zA-Z]{2,}$/.test(email)) {
+                document.getElementById('guestEmailError').style.display = 'block';
+                return;
+            }
+            processOrder(email);
+        }
+
+        function processOrder(client_email) {
+            fetch('/api/orders', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ items: cart, client_email })
+            }).then(r => r.json()).then(data => {
+                const pickupInfo = [...new Set(cart.map(p => `<li><b>${p.producer_name}</b> — ${p.lat ? p.lat.toFixed(4)+', '+p.lng.toFixed(4) : ''}</li>`))].join('');
+                const emailNote = data.emailPreviewUrl 
+                    ? `<div style="background:#fff3cd; padding:12px; border-radius:8px; margin-top:1rem; border:1px solid #ffc107;">
+                        <p style="margin:0; font-size:0.85rem; color:#856404;"><i class="fa-solid fa-flask"></i> <b>Modo de pruebas:</b> El correo no llega a tu buzón real. Puedes verlo aquí:</p>
+                        <a href="${data.emailPreviewUrl}" target="_blank" style="display:block; text-align:center; margin-top:8px; background:#1a7a3a; color:white; padding:10px; border-radius:8px; text-decoration:none; font-weight:700;"><i class="fa-solid fa-envelope-open-text"></i> Ver Email de Confirmación</a>
+                       </div>`
+                    : `<p style="margin-top:1rem; font-size:0.85rem; color:gray;"><i class="fa-solid fa-check-circle" style="color:var(--primary);"></i> Email enviado correctamente a <b>${client_email}</b></p>`;
+                document.getElementById('cartItems').innerHTML = `
+                    <div style="text-align:center; padding:2rem 0;">
+                        <i class="fa-solid fa-circle-check" style="font-size:4rem; color:var(--primary); margin-bottom:1rem;"></i>
+                        <h2>¡Reserva Confirmada!</h2>
+                        <p style="color:gray; font-size:0.9rem;">Correo de confirmación para <b>${client_email}</b></p>
+                        <div id="qrcode-container" style="display:flex; justify-content:center; margin:1.5rem 0; padding:10px; background:white; border-radius:12px; box-shadow:0 5px 15px rgba(0,0,0,0.05);"></div>
+                        <p style="color:gray; font-size:0.9rem;">Referencia: ${data.qr_code}</p>
+                        <div style="text-align:left; background:#f9f9f9; padding:1rem; border-radius:8px; margin-top:1rem;">
+                            <h4 style="margin:0 0 0.5rem;"><i class="fa-solid fa-location-dot" style="color:var(--primary);"></i> Puntos de recogida:</h4>
+                            <ul style="margin:0; padding-left:1.2rem; font-size:0.9rem; color:#555;">${pickupInfo}</ul>
+                        </div>
+                        ${emailNote}
+                    </div>`;
+                new QRCode(document.getElementById("qrcode-container"), { text: data.qr_code, width: 180, height: 180, colorDark: "#27ae60", colorLight: "#ffffff", correctLevel: QRCode.CorrectLevel.M });
+                document.getElementById('cartFooter').style.display = 'none';
+                cart = [];
+                localStorage.removeItem('km0_cart');
+                document.getElementById('cartBadge').innerText = '0';
+            });
+        }
+
+        // === MAP & GEOLOCATION ===
+        let userLat = 40.4168, userLng = -3.7038, hasUserLocation = false, userMarker = null;
+        const map = L.map('map').setView([userLat, userLng], 6);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map);
+
+        // Custom green marker icon
+        const greenIcon = L.icon({
+            iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-green.png',
+            shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-shadow.png',
+            iconSize: [25, 41], iconAnchor: [12, 41], popupAnchor: [1, -34], shadowSize: [41, 41]
+        });
+
+        function getUserLocation() {
+            if (!navigator.geolocation) return showToast('Tu navegador no soporta geolocalización.', true);
+            navigator.geolocation.getCurrentPosition(pos => {
+                userLat = pos.coords.latitude;
+                userLng = pos.coords.longitude;
+                hasUserLocation = true;
+                map.setView([userLat, userLng], 9);
+                if(userMarker) map.removeLayer(userMarker);
+                userMarker = L.marker([userLat, userLng], {
+                    icon: L.icon({
+                        iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-blue.png',
+                        shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-shadow.png',
+                        iconSize: [25, 41], iconAnchor: [12, 41], popupAnchor: [1, -34], shadowSize: [41, 41]
+                    })
+                }).addTo(map).bindPopup('<b>Tu ubicación actual</b>').openPopup();
+                document.getElementById('locationBtn').style.background = 'rgba(255,255,255,0.35)';
+                applyFilters();
+            }, () => showToast('No se pudo obtener la ubicación.', true));
+        }
+
+        // Haversine formula — distance between two coordinates in km
+        function getDistance(lat1, lon1, lat2, lon2) {
+            const R = 6371, dLat = (lat2 - lat1) * Math.PI / 180, dLon = (lon2 - lon1) * Math.PI / 180;
+            const a = Math.sin(dLat/2)**2 + Math.cos(lat1*Math.PI/180) * Math.cos(lat2*Math.PI/180) * Math.sin(dLon/2)**2;
+            return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+        }
+
+        const markers = [];
+        function renderMarkers(filteredProducers) {
+            markers.forEach(m => map.removeLayer(m));
+            markers.length = 0;
+            filteredProducers.forEach(p => {
+                if(!p.verified) return;
+                const prods = productsData.filter(pr => pr.producer_id === p.id).slice(0, 2);
+                const prodsHtml = prods.map(pr => `<div style="display:flex;align-items:center;gap:6px;margin-top:4px;"><img src="${pr.image_url}" style="width:32px;height:32px;border-radius:4px;object-fit:cover;"><span style="font-size:0.75rem;">${pr.name.substring(0,22)} <b>${pr.price.toFixed(2)}€</b></span></div>`).join('');
+                const img = p.profileImage ? `<img src="${p.profileImage}" style="width:100%;height:80px;object-fit:cover;border-radius:6px;margin-bottom:6px;">` : '';
+                const m = L.marker([p.lat, p.lng], { icon: greenIcon }).addTo(map);
+                m.bindPopup(`<div style="width:200px;font-family:Inter,sans-serif;">${img}<b style="font-size:0.95rem;">${p.name}</b><br><span style="font-size:0.8rem;color:gray;">${p.locality}</span>${prodsHtml}<a href="/producer-profile?id=${p.id}" style="display:block;text-align:center;margin-top:8px;background:#2ecc71;color:white;padding:6px;border-radius:6px;text-decoration:none;font-weight:600;font-size:0.85rem;">Ver Perfil y Productos</a></div>`, { maxWidth: 220 });
+                markers.push(m);
+            });
+        }
+
+        // === PRODUCTS GRID ===
+        function renderProductsGrid(products) {
+            const grid = document.getElementById('productsGrid');
+            if(products.length === 0) {
+                grid.innerHTML = '<p style="color:gray; grid-column:1/-1; text-align:center; padding:3rem;">No se encontraron productos con estos filtros.</p>';
+                return;
+            }
+            grid.innerHTML = products.map(p => {
+                const isFav = userFavorites.has(p.id);
+                return `
+                <div class="produce-card">
+                    <span class="card-badge">${p.category}</span>
+                    <span class="card-price">${p.price.toFixed(2)}€</span>
+                    <button onclick="toggleFavorite(${p.id}, this)" title="${isFav ? 'Quitar de favoritos' : 'Guardar en favoritos'}"
+                        style="position:absolute; top:12px; right:70px; background:rgba(0,0,0,0.5); border:none; border-radius:50%; width:32px; height:32px; cursor:pointer; color:${isFav ? '#e74c3c' : 'rgba(255,255,255,0.8)'}; z-index:10; display:flex; align-items:center; justify-content:center;">
+                        <i class="fa-${isFav ? 'solid' : 'regular'} fa-heart"></i>
+                    </button>
+                    <img src="${p.image_url}" alt="${p.name}">
+                    <div class="produce-info">
+                        <h4>${p.name}</h4>
+                        <span class="producer-link" onclick="window.location.href='/producer-profile?id=${p.producer_id}'"><i class="fa-solid fa-tractor"></i> ${p.producer_name}</span>
+                        <div class="pickup-tag"><i class="fa-solid fa-calendar-check"></i> Recogida: ${p.pickup_day}</div>
+                        <div style="display:flex; justify-content:space-between; align-items:center;">
+                            <span style="font-weight:bold; font-size:1.2rem; color:var(--primary);">${p.kg}kg</span>
+                            <button onclick="addToCart(${p.id})" class="btn btn-primary" style="padding:0.5rem 1.2rem; font-weight:700;"><i class="fa-solid fa-basket-shopping"></i> Comprar</button>
+                        </div>
+                    </div>
+                </div>`;
+            }).join('');
+        }
+
+        // === FILTERS ===
+        let currentCategory = 'Todas';
+
+        function filterCategory(category) {
+            currentCategory = category;
+            document.querySelectorAll('#products-view .btn').forEach(b => {
+                b.classList.toggle('btn-primary', b.innerText === category);
+                b.classList.toggle('btn-outline', b.innerText !== category);
+            });
+            applyFilters();
+        }
+
+        function applyFilters() {
+            const text = document.getElementById('globalSearch').value.toLowerCase();
+            const maxDistance = parseInt(document.getElementById('distanceFilter').value);
+            const mapCategory = document.getElementById('mapCategoryFilter').value;
+            const mapSearch = document.getElementById('mapSearch').value.toLowerCase();
+
+            // Filter producers by distance
+            let filteredProducers = producersData;
+            if(hasUserLocation) {
+                filteredProducers = filteredProducers.filter(p => getDistance(userLat, userLng, p.lat, p.lng) <= maxDistance);
+            }
+
+            // Filter map producers by category/search (only show producers that have matching products)
+            if(mapCategory !== 'Todas' || mapSearch) {
+                filteredProducers = filteredProducers.filter(p => {
+                    const prods = productsData.filter(pr => pr.producer_id === p.id);
+                    let match = prods;
+                    if(mapCategory !== 'Todas') match = match.filter(pr => pr.category === mapCategory);
+                    if(mapSearch) match = match.filter(pr => pr.name.toLowerCase().includes(mapSearch));
+                    return match.length > 0;
+                });
+            }
+            renderMarkers(filteredProducers);
+
+            // Filter products grid by producer, category, and text
+            const allProducersInRange = hasUserLocation ? producersData.filter(p => getDistance(userLat, userLng, p.lat, p.lng) <= maxDistance) : producersData;
+            const validIds = allProducersInRange.map(p => p.id);
+            let filtered = productsData.filter(p => validIds.includes(p.producer_id));
+            if(currentCategory !== 'Todas') filtered = filtered.filter(p => p.category === currentCategory);
+            if(text) filtered = filtered.filter(p => p.name.toLowerCase().includes(text) || p.producer_name.toLowerCase().includes(text));
+            renderProductsGrid(filtered);
+        }
+
+        // === SEARCH LISTENER ===
+        document.getElementById('globalSearch').addEventListener('input', () => {
+            applyFilters();
+            if(document.getElementById('map-view').classList.contains('active') && document.getElementById('globalSearch').value.length > 2) {
+                switchView('products-view', document.querySelectorAll('.nav-item')[1]);
+            }
+        });
+
+        // === INIT ===
+        if(window.location.hash) {
+            const hash = window.location.hash.replace('#', '');
+            let navEl = null;
+            document.querySelectorAll('.nav-item').forEach(n => {
+                if(n.getAttribute('onclick') && n.getAttribute('onclick').includes(hash)) navEl = n;
+            });
+            switchView(hash, navEl);
+        }
+        
+        updateCartUI();
+        getUserLocation();
+        applyFilters();
+    </script>
+    <%- include('partials/footer') %>
+</body>
+</html>
