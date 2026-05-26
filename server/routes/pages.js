@@ -1,38 +1,61 @@
 const express = require('express');
 const router = express.Router();
-const jwt = require('jsonwebtoken');
-const JWT_SECRET = process.env.JWT_SECRET || 'fallback_secret_km0';
-const db = require('../db/mockDb');
+const pool = require('../config/db');
+const { getSessionUser } = require('../middleware/auth');
 
-// ── Helpers ────────────────────────────────────────────────────
-const getProductsWithProducers = () => {
-    return db.products.filter(prod => {
-        const producer = db.producers.find(p => p.id === prod.producer_id);
-        return producer && producer.verified && !producer.isBlocked;
-    }).map(prod => {
-        const producer = db.producers.find(p => p.id === prod.producer_id);
-        return { ...prod, producer_name: producer.name, lat: producer.lat, lng: producer.lng };
-    });
-};
+// ── Helpers ─────────────────────────────────────────────────────
 
-const getPublicProducers = () => {
-    return db.producers
-        .filter(p => p.verified && !p.isBlocked)
-        .map(({ password, dni, catastral, ...safe }) => safe);
-};
-
-function getSessionUser(req) {
-    try {
-        const token = req.cookies.km0_jwt;
-        if(!token) return null;
-        return jwt.verify(token, JWT_SECRET);
-    } catch(e) { return null; }
+async function getProductsWithProducers() {
+    const result = await pool.query(
+        `SELECT p.id, p.producer_id, p.name, p.category, p.price, p.kg, p.pickup_day, p.image_url,
+                u.name AS producer_name,
+                ST_Y(u.location::geometry) AS lat,
+                ST_X(u.location::geometry) AS lng
+         FROM products p
+         JOIN users u ON p.producer_id = u.id
+         WHERE u.status = 'VERIFIED' AND u.is_blocked = FALSE
+         ORDER BY p.id`
+    );
+    return result.rows.map(r => ({
+        ...r,
+        price: parseFloat(r.price),
+        kg: parseFloat(r.kg),
+        lat: parseFloat(r.lat),
+        lng: parseFloat(r.lng),
+    }));
 }
 
-// ── PUBLIC ROUTES ──────────────────────────────────────────────
-router.get('/', (req, res) => {
-    const products = getProductsWithProducers();
-    res.render('index', { products, producers: getPublicProducers(), page: 'home' });
+async function getPublicProducers() {
+    const result = await pool.query(
+        `SELECT id, name, last_name AS "lastName", locality, phone, history, profile_image AS "profileImage",
+                status, is_blocked AS "isBlocked",
+                ST_Y(location::geometry) AS lat,
+                ST_X(location::geometry) AS lng
+         FROM users
+         WHERE role = 'PRODUCER' AND status = 'VERIFIED' AND is_blocked = FALSE
+         ORDER BY id`
+    );
+    return result.rows.map(r => ({
+        ...r,
+        verified: true,
+        lat: parseFloat(r.lat),
+        lng: parseFloat(r.lng),
+    }));
+}
+
+// ── RUTAS PÚBLICAS ───────────────────────────────────────────────
+
+router.get('/', async (req, res) => {
+    try {
+        const [products, producers] = await Promise.all([
+            getProductsWithProducers(),
+            getPublicProducers()
+        ]);
+        res.render('index', { products, producers, page: 'home' });
+    } catch (err) {
+        console.error('Error cargando home:', err.message);
+        res.render('index', { products: [], producers: [], page: 'home' });
+    }
 });
 
 router.get('/about', (req, res) => {
@@ -48,73 +71,191 @@ router.get('/register', (req, res) => {
     res.render('register', { page: 'register', role });
 });
 
-router.get('/producer-profile', (req, res) => {
-    const id = parseInt(req.query.id) || 1;
-    const products = getProductsWithProducers();
-    const producerProducts = products.filter(p => p.producer_id === id);
-    const producer = db.producers.find(p => p.id === id);
-    
-    // Sanitize producer data for public view
-    let safeProducer = null;
-    if(producer) {
-        const { password, dni, catastral, ...safe } = producer;
-        safeProducer = safe;
+router.get('/producer-profile', async (req, res) => {
+    const id = parseInt(req.query.id) || 0;
+    try {
+        const producerResult = await pool.query(
+            `SELECT id, name, last_name AS "lastName", locality, phone, history,
+                    profile_image AS "profileImage", status
+             FROM users WHERE id = $1 AND role = 'PRODUCER'`,
+            [id]
+        );
+        const producer = producerResult.rows[0] || null;
+
+        const productsResult = await pool.query(
+            `SELECT p.id, p.producer_id, p.name, p.category, p.price, p.kg, p.pickup_day, p.image_url,
+                    u.name AS producer_name,
+                    ST_Y(u.location::geometry) AS lat,
+                    ST_X(u.location::geometry) AS lng
+             FROM products p
+             JOIN users u ON p.producer_id = u.id
+             WHERE p.producer_id = $1`,
+            [id]
+        );
+        const products = productsResult.rows.map(r => ({
+            ...r,
+            price: parseFloat(r.price),
+            kg: parseFloat(r.kg),
+            lat: parseFloat(r.lat),
+            lng: parseFloat(r.lng),
+        }));
+
+        res.render('producer-profile', { page: 'producer-profile', producer, products });
+    } catch (err) {
+        console.error('Error producer-profile:', err.message);
+        res.render('producer-profile', { page: 'producer-profile', producer: null, products: [] });
     }
-    
-    res.render('producer-profile', { 
-        page: 'producer-profile', 
-        producer: safeProducer, 
-        products: producerProducts 
-    });
 });
 
-// ── PROTECTED: Producer Dashboard ──────────────────────────────
-router.get('/producer-app', (req, res) => {
+// ── PROTECTED: Dashboard Productor ──────────────────────────────
+router.get('/producer-app', async (req, res) => {
     const user = getSessionUser(req);
-    if(!user || user.role !== 'productor') return res.redirect('/login');
-    
-    const producer = db.producers.find(p => p.email === user.email);
-    if(!producer) return res.redirect('/login');
-    
-    // Get this producer's products
-    const myProducts = db.products.filter(p => p.producer_id === producer.id);
-    
-    // Get this producer's orders (items that reference their products)
-    const myProductIds = myProducts.map(p => p.id);
-    const myOrders = db.orders.filter(o => 
-        o.items.some(i => myProductIds.includes(i.id))
-    );
-    
-    // Stats
-    const totalSales = myOrders.filter(o => o.status !== 'CANCELLED').length;
-    const totalRevenue = myOrders
-        .filter(o => o.status !== 'CANCELLED')
-        .reduce((sum, o) => sum + o.items.filter(i => myProductIds.includes(i.id)).reduce((s, i) => s + i.price, 0), 0);
-    const pendingOrders = myOrders.filter(o => o.status === 'PENDING').length;
-    
-    // Don't send password to template
-    const { password, ...safeProducer } = producer;
-    
-    res.render('producer-app', { 
-        page: 'producer-app',
-        producer: safeProducer,
-        products: myProducts,
-        orders: myOrders,
-        stats: { totalSales, totalRevenue, pendingOrders }
-    });
+    if (!user || user.role !== 'productor') return res.redirect('/login');
+
+    try {
+        const producerResult = await pool.query(
+            `SELECT id, name, last_name AS "lastName", email, phone, locality, history,
+                    profile_image AS "profileImage", status, dni, cadastral_ref AS "catastral"
+             FROM users WHERE email = $1 AND role = 'PRODUCER'`,
+            [user.email]
+        );
+        if (producerResult.rows.length === 0) return res.redirect('/login');
+        const producer = producerResult.rows[0];
+        producer.verified = producer.status === 'VERIFIED';
+
+        const productsResult = await pool.query(
+            'SELECT * FROM products WHERE producer_id = $1 ORDER BY id',
+            [producer.id]
+        );
+        const products = productsResult.rows.map(r => ({ ...r, price: parseFloat(r.price), kg: parseFloat(r.kg) }));
+
+        // Pedidos que incluyen productos de este productor
+        const ordersResult = await pool.query(
+            `SELECT DISTINCT o.id AS order_id, o.client_email, o.qr_code, o.status, o.total_price, o.created_at,
+                    json_agg(json_build_object('id', oi.product_id, 'name', oi.product_name, 'price', oi.unit_price)) AS items
+             FROM orders o
+             JOIN order_items oi ON oi.order_id = o.id
+             JOIN products p ON p.id = oi.product_id
+             WHERE p.producer_id = $1
+             GROUP BY o.id
+             ORDER BY o.created_at DESC`,
+            [producer.id]
+        );
+        const orders = ordersResult.rows.map(o => ({
+            ...o,
+            total_price: parseFloat(o.total_price),
+            items: o.items || []
+        }));
+
+        // Estadísticas
+        const notCancelled = orders.filter(o => o.status !== 'CANCELLED');
+        const totalSales = notCancelled.length;
+        const totalRevenue = notCancelled.reduce((sum, o) => sum + parseFloat(o.total_price), 0);
+        const pendingOrders = orders.filter(o => o.status === 'PENDING').length;
+
+        res.render('producer-app', {
+            page: 'producer-app',
+            producer,
+            products,
+            orders,
+            stats: { totalSales, totalRevenue, pendingOrders }
+        });
+    } catch (err) {
+        console.error('Error producer-app:', err.message);
+        res.redirect('/login');
+    }
 });
 
-// ── PROTECTED: Admin Dashboard ─────────────────────────────────
-router.get('/admin-app', (req, res) => {
+// ── PROTECTED: Dashboard Cliente ────────────────────────────────
+router.get('/client-app', async (req, res) => {
     const user = getSessionUser(req);
-    if(!user || user.role !== 'admin') return res.redirect('/login');
-    
-    res.render('admin-app', { 
-        page: 'admin-app', 
-        producers: db.producers, 
-        clients: db.clients, 
-        orders: db.orders 
-    });
+    if (!user || user.role !== 'cliente') return res.redirect('/login');
+
+    try {
+        const clientResult = await pool.query(
+            'SELECT id, name, last_name AS "lastName", email FROM users WHERE id = $1',
+            [user.id]
+        );
+        if (clientResult.rows.length === 0) return res.redirect('/login');
+        const client = clientResult.rows[0];
+
+        // Pedidos del cliente
+        const ordersResult = await pool.query(
+            `SELECT o.id AS order_id, o.qr_code, o.status, o.total_price, o.created_at,
+                    json_agg(json_build_object('name', oi.product_name, 'price', oi.unit_price)) AS items
+             FROM orders o
+             LEFT JOIN order_items oi ON oi.order_id = o.id
+             WHERE o.client_id = $1
+             GROUP BY o.id
+             ORDER BY o.created_at DESC`,
+            [user.id]
+        );
+        const orders = ordersResult.rows.map(o => ({
+            ...o,
+            total_price: parseFloat(o.total_price),
+            items: o.items || []
+        }));
+
+        // Favoritos del cliente
+        const favResult = await pool.query(
+            `SELECT p.id, p.name, p.category, p.price, p.kg, p.pickup_day, p.image_url,
+                    u.name AS producer_name, u.id AS producer_id
+             FROM favorites f
+             JOIN products p ON f.product_id = p.id
+             JOIN users u ON p.producer_id = u.id
+             WHERE f.client_id = $1`,
+            [user.id]
+        );
+        const favorites = favResult.rows.map(r => ({ ...r, price: parseFloat(r.price), kg: parseFloat(r.kg) }));
+
+        res.render('client-app', { page: 'client-app', client, orders, favorites });
+    } catch (err) {
+        console.error('Error client-app:', err.message);
+        res.redirect('/login');
+    }
+});
+
+// ── PROTECTED: Panel Admin ───────────────────────────────────────
+router.get('/admin-app', async (req, res) => {
+    const user = getSessionUser(req);
+    if (!user || user.role !== 'admin') return res.redirect('/login');
+
+    try {
+        const producersResult = await pool.query(
+            `SELECT id, name, last_name AS "lastName", email, phone, locality,
+                    profile_image AS "profileImage", history, status, is_blocked AS "isBlocked",
+                    dni, cadastral_ref AS "catastral"
+             FROM users WHERE role = 'PRODUCER' ORDER BY id`
+        );
+        const producers = producersResult.rows.map(p => ({
+            ...p,
+            verified: p.status === 'VERIFIED'
+        }));
+
+        const clientsResult = await pool.query(
+            'SELECT id, name, last_name AS "lastName", email, is_blocked AS "isBlocked" FROM users WHERE role = \'CLIENT\' ORDER BY id'
+        );
+        const clients = clientsResult.rows;
+
+        const ordersResult = await pool.query(
+            `SELECT o.id AS order_id, o.qr_code, o.status, o.total_price, o.client_email, o.created_at,
+                    json_agg(json_build_object('name', oi.product_name, 'price', oi.unit_price)) AS items
+             FROM orders o
+             LEFT JOIN order_items oi ON oi.order_id = o.id
+             GROUP BY o.id
+             ORDER BY o.created_at DESC`
+        );
+        const orders = ordersResult.rows.map(o => ({
+            ...o,
+            total_price: parseFloat(o.total_price),
+            items: o.items || []
+        }));
+
+        res.render('admin-app', { page: 'admin-app', producers, clients, orders });
+    } catch (err) {
+        console.error('Error admin-app:', err.message);
+        res.redirect('/login');
+    }
 });
 
 module.exports = router;

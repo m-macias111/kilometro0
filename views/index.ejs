@@ -1,13 +1,8 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <%- include('partials/head') %>
     <title>Kilómetro 0 | Tienda</title>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;800&family=Outfit:wght@400;700&display=swap" rel="stylesheet">
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="/css/style.css">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <style>
         body { background: #f4f6f8; overflow: hidden; }
@@ -94,6 +89,11 @@
                     <div id="authContainer">
                         <a href="/login" class="btn" style="padding: 0.5rem 1rem; background:white; color:#1a7a3a; font-weight:700; border:none; border-radius:8px;">Entrar</a>
                     </div>
+                    <div id="dashboardLink" style="display:none;">
+                        <a href="/client-app" class="btn" style="padding: 0.5rem 1rem; background:rgba(255,255,255,0.2); color:white; font-weight:700; border:1px solid rgba(255,255,255,0.4); border-radius:8px; font-size:0.85rem;" title="Mi cuenta">
+                            <i class="fa-solid fa-circle-user"></i>
+                        </a>
+                    </div>
                 </div>
             </div>
 
@@ -161,15 +161,60 @@
 
         // === AUTH ===
         const userStr = localStorage.getItem('km0_user');
+        let currentUser = null;
+        let userFavorites = new Set();
+
         if(userStr) {
-            const user = JSON.parse(userStr);
+            currentUser = JSON.parse(userStr);
             document.getElementById('authContainer').innerHTML = `
                 <div style="font-weight:600; color:white; cursor:pointer;" onclick="logout()">
-                    <i class="fa-solid fa-circle-user" style="color:#8fff8f; font-size:1.2rem; margin-right:5px;"></i> ${user.name}
+                    <i class="fa-solid fa-circle-user" style="color:#8fff8f; font-size:1.2rem; margin-right:5px;"></i> ${currentUser.name}
                     <span style="font-size:0.8rem; color:rgba(255,255,255,0.7); display:block;">Cerrar sesión</span>
                 </div>`;
+            // Mostrar enlace al dashboard según rol
+            if(currentUser.role === 'cliente') {
+                document.getElementById('dashboardLink').style.display = 'block';
+                // Cargar favoritos del usuario
+                fetch('/api/favorites').then(r => r.json()).then(data => {
+                    if(data.favorites) {
+                        data.favorites.forEach(f => userFavorites.add(f.id));
+                    }
+                });
+            } else if(currentUser.role === 'productor') {
+                document.getElementById('dashboardLink').innerHTML = `<a href="/producer-app" class="btn" style="padding: 0.5rem 1rem; background:rgba(255,255,255,0.2); color:white; font-weight:700; border:1px solid rgba(255,255,255,0.4); border-radius:8px; font-size:0.85rem;"><i class="fa-solid fa-tractor"></i></a>`;
+                document.getElementById('dashboardLink').style.display = 'block';
+            }
         }
-        function logout() { localStorage.removeItem('km0_user'); window.location.reload(); }
+        function logout() {
+            fetch('/api/logout', { method: 'POST' }).then(() => {
+                localStorage.removeItem('km0_user');
+                window.location.reload();
+            });
+        }
+
+        function toggleFavorite(productId, btn) {
+            if(!currentUser || currentUser.role !== 'cliente') {
+                window.location.href = '/login';
+                return;
+            }
+            fetch('/api/favorites/toggle', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ product_id: productId })
+            }).then(r => r.json()).then(data => {
+                if(data.success) {
+                    if(data.action === 'added') {
+                        userFavorites.add(productId);
+                        btn.style.color = '#e74c3c';
+                        btn.title = 'Quitar de favoritos';
+                    } else {
+                        userFavorites.delete(productId);
+                        btn.style.color = 'rgba(255,255,255,0.8)';
+                        btn.title = 'Guardar en favoritos';
+                    }
+                }
+            });
+        }
 
         // === UI UTILS ===
         function showToast(msg, isError=false) {
@@ -361,10 +406,16 @@
                 grid.innerHTML = '<p style="color:gray; grid-column:1/-1; text-align:center; padding:3rem;">No se encontraron productos con estos filtros.</p>';
                 return;
             }
-            grid.innerHTML = products.map(p => `
+            grid.innerHTML = products.map(p => {
+                const isFav = userFavorites.has(p.id);
+                return `
                 <div class="produce-card">
                     <span class="card-badge">${p.category}</span>
                     <span class="card-price">${p.price.toFixed(2)}€</span>
+                    <button onclick="toggleFavorite(${p.id}, this)" title="${isFav ? 'Quitar de favoritos' : 'Guardar en favoritos'}"
+                        style="position:absolute; top:12px; right:70px; background:rgba(0,0,0,0.5); border:none; border-radius:50%; width:32px; height:32px; cursor:pointer; color:${isFav ? '#e74c3c' : 'rgba(255,255,255,0.8)'}; z-index:10; display:flex; align-items:center; justify-content:center;">
+                        <i class="fa-${isFav ? 'solid' : 'regular'} fa-heart"></i>
+                    </button>
                     <img src="${p.image_url}" alt="${p.name}">
                     <div class="produce-info">
                         <h4>${p.name}</h4>
@@ -375,7 +426,8 @@
                             <button onclick="addToCart(${p.id})" class="btn btn-primary" style="padding:0.5rem 1.2rem; font-weight:700;"><i class="fa-solid fa-basket-shopping"></i> Comprar</button>
                         </div>
                     </div>
-                </div>`).join('');
+                </div>`;
+            }).join('');
         }
 
         // === FILTERS ===
@@ -445,8 +497,6 @@
         getUserLocation();
         applyFilters();
     </script>
-    <!-- Bootstrap JS bundle -->
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <%- include('partials/footer') %>
 </body>
 </html>
