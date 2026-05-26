@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Kilómetro 0 | Administración</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;800&family=Outfit:wght@400;700&display=swap" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="/css/style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        body { background-color: #f0f2f5; }
+        .dashboard-container { max-width: 1100px; margin: 3rem auto; display: grid; grid-template-columns: 280px 1fr; gap: 2rem; padding: 0 1rem; }
+        .menu-bar { background: white; padding: 2rem 1.5rem; border-radius: 16px; box-shadow: var(--shadow-sm); display: flex; flex-direction: column; gap: 1rem; }
+        .menu-item { padding: 1rem; border-radius: 8px; cursor: pointer; transition: 0.3s; font-weight: 600; color: var(--secondary); display: flex; align-items: center; gap: 10px; }
+        .menu-item:hover, .menu-item.active { background: #34495e; color: white; }
+        
+        .content-area { background: white; padding: 2rem; border-radius: 16px; box-shadow: var(--shadow-sm); min-height: 500px; }
+        .content-panel { display: none; }
+        .content-panel.active { display: block; animation: fadeIn 0.4s ease; }
+        
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        
+        .list-group { display: flex; flex-direction: column; gap: 1rem; }
+        .list-item { border: 1px solid #ddd; padding: 1.5rem; border-radius: 12px; display: flex; justify-content: space-between; align-items: center; transition: 0.3s; }
+        .list-item:hover { border-color: #34495e; }
+        
+        .badge { padding: 0.3rem 0.8rem; border-radius: 20px; font-size: 0.8rem; font-weight: bold; }
+        .badge-warning { background: #f39c12; color: white; }
+        .badge-success { background: #2ecc71; color: white; }
+    </style>
+</head>
+<body>
+    <nav class="navbar" style="position:static; background:#34495e; color:white;">
+        <div class="logo" style="color:white;">
+            <i class="fa-solid fa-shield-halved"></i>
+            <span>Administración Kilómetro 0</span>
+        </div>
+        <div class="nav-links">
+            <span id="userName" style="font-weight:600; margin-right:1rem; color:white;"></span>
+            <button onclick="logoutAdmin()" class="btn btn-outline" style="border-color:rgba(255,255,255,0.5); color:white;">Cerrar Sesión</button>
+        </div>
+    </nav>
+
+    <div class="dashboard-container">
+        <div class="menu-bar">
+            <div class="menu-item active" onclick="switchTab('tab-producers')"><i class="fa-solid fa-users"></i> Gestor Productores</div>
+            <div class="menu-item" onclick="switchTab('tab-clients')"><i class="fa-solid fa-user"></i> Gestor Clientes</div>
+            <div class="menu-item" onclick="switchTab('tab-orders')"><i class="fa-solid fa-receipt"></i> Logs de Transacciones</div>
+        </div>
+
+        <div class="content-area">
+            <div id="tab-producers" class="content-panel active">
+                <h2 style="margin-bottom: 2rem;">Validación de Productores</h2>
+                <div class="list-group">
+                    <% producers.forEach(function(p) { %>
+                        <div class="list-item" style="align-items:flex-start;">
+                            <div style="display:flex; gap:1rem;">
+                                <% if(p.profileImage) { %>
+                                    <img src="<%= p.profileImage %>" style="width:60px; height:60px; border-radius:8px; object-fit:cover;">
+                                <% } else { %>
+                                    <div style="width:60px; height:60px; border-radius:8px; background:#ddd; display:flex; align-items:center; justify-content:center; color:gray;"><i class="fa-solid fa-tractor"></i></div>
+                                <% } %>
+                                <div>
+                                    <h4 style="margin:0 0 5px 0;"><%= p.name %> <%= p.lastName || '' %> <span style="font-size:0.9rem; color:gray; font-weight:normal;">(<%= p.email %>)</span></h4>
+                                    <p style="margin:0; font-size:0.9rem; color:gray;"><i class="fa-solid fa-location-dot"></i> <%= p.locality %> | <i class="fa-solid fa-phone"></i> <%= p.phone %></p>
+                                    <% if(p.history) { %> <p style="font-size:0.85rem; margin-top:5px; color:#555;"><i>"<%= p.history %>"</i></p> <% } %>
+                                    <% if(!p.verified) { %>
+                                        <div style="margin-top:10px; background:#f9f9f9; padding:10px; border-radius:8px; border:1px solid #eee;">
+                                            <p style="margin:0 0 5px 0; font-size:0.85rem;"><strong>DNI:</strong> <%= p.dni %></p>
+                                            <p style="margin:0; font-size:0.85rem;"><strong>Ref. Catastral:</strong> <%= p.catastral %></p>
+                                        </div>
+                                    <% } %>
+                                </div>
+                            </div>
+                            <div style="text-align: right; display:flex; flex-direction:column; gap:0.5rem; align-items:flex-end;">
+                                <div>
+                                    <% if(p.verified) { %>
+                                        <span class="badge badge-success"><i class="fa-solid fa-check"></i> Verificado</span>
+                                    <% } else { %>
+                                        <span class="badge badge-warning" id="badge-<%= p.id %>"><i class="fa-solid fa-clock"></i> Pendiente</span>
+                                        <button class="btn btn-primary" id="btn-<%= p.id %>" style="padding:0.3rem 0.8rem; margin-left:10px; background:#34495e; border:none; font-size:0.8rem;" onclick="verifyProducer(<%= p.id %>)">Aprobar</button>
+                                    <% } %>
+                                </div>
+                                <div style="display:flex; gap:0.5rem; margin-top:10px;">
+                                    <button class="btn btn-outline" style="padding:0.3rem 0.8rem; font-size:0.8rem;" onclick="window.open('/producer-profile?id=<%= p.id %>', '_blank')">Ver Perfil</button>
+                                    <% if(p.profileImage) { %>
+                                        <button class="btn btn-outline" style="padding:0.3rem 0.8rem; font-size:0.8rem;" onclick="removePhoto(<%= p.id %>)">Borrar Foto</button>
+                                    <% } %>
+                                    <% if(p.isBlocked) { %>
+                                        <button class="btn btn-outline" style="padding:0.3rem 0.8rem; font-size:0.8rem; color:green; border-color:green;" onclick="toggleBlock('productor', <%= p.id %>, false)">Desbloquear</button>
+                                    <% } else { %>
+                                        <button class="btn btn-outline" style="padding:0.3rem 0.8rem; font-size:0.8rem; color:red; border-color:red;" onclick="toggleBlock('productor', <%= p.id %>, true)">Bloquear</button>
+                                    <% } %>
+                                </div>
+                            </div>
+                        </div>
+                    <% }); %>
+                    <% if(producers.length === 0) { %>
+                        <p>No hay productores en el sistema.</p>
+                    <% } %>
+                </div>
+            </div>
+
+            <div id="tab-clients" class="content-panel">
+                <h2 style="margin-bottom: 2rem;">Perfiles de Clientes</h2>
+                <div class="list-group">
+                    <% clients.forEach(function(c) { %>
+                        <div class="list-item">
+                            <div>
+                                <h4 style="margin:0 0 5px 0;"><%= c.name %> <%= c.lastName || '' %></h4>
+                                <p style="margin:0; font-size:0.9rem; color:gray;"><i class="fa-solid fa-envelope"></i> <%= c.email %></p>
+                            </div>
+                            <div style="text-align: right;">
+                                <% if(c.isBlocked) { %>
+                                    <button class="btn btn-outline" style="padding:0.3rem 0.8rem; font-size:0.8rem; color:green; border-color:green;" onclick="toggleBlock('cliente', <%= c.id %>, false)">Desbloquear</button>
+                                <% } else { %>
+                                    <button class="btn btn-outline" style="padding:0.3rem 0.8rem; font-size:0.8rem; color:red; border-color:red;" onclick="toggleBlock('cliente', <%= c.id %>, true)">Bloquear</button>
+                                <% } %>
+                            </div>
+                        </div>
+                    <% }); %>
+                    <% if(clients.length === 0) { %>
+                        <p style="color:gray;">No hay clientes registrados en el sistema.</p>
+                    <% } %>
+                </div>
+            </div>
+
+            <div id="tab-orders" class="content-panel">
+                <h2 style="margin-bottom: 2rem;">Monitor Global de Reservas</h2>
+                <div class="list-group">
+                    <% orders.forEach(function(o) { %>
+                        <div class="list-item">
+                            <div>
+                                <h4 style="margin:0 0 5px 0;"><i class="fa-solid fa-qrcode"></i> <%= o.qr_code %></h4>
+                                <p style="margin:0; font-size:0.9rem; color:gray;">Artículos: <%= o.items.length %></p>
+                            </div>
+                            <div style="text-align: right;">
+                                <strong style="font-size:1.2rem; color:var(--primary);"><%= o.total_price.toFixed(2) %>€</strong><br>
+                                <span style="font-size:0.8rem; color:gray;"><%= o.status %></span><br>
+                                <% if(o.status !== 'CANCELLED') { %>
+                                    <button class="btn btn-outline" style="padding:0.3rem 0.8rem; font-size:0.8rem; color:red; border-color:red; margin-top:5px;" onclick="cancelOrder('<%= o.order_id %>')">Cancelar</button>
+                                <% } %>
+                            </div>
+                        </div>
+                    <% }); %>
+                    <% if(orders.length === 0) { %>
+                        <p style="color:gray;">Aún no se ha realizado ninguna transacción en la plataforma.</p>
+                    <% } %>
+                </div>
+            </div>
+            
+        </div>
+    </div>
+
+    <script>
+        const userStr = localStorage.getItem('km0_user');
+        if(userStr) {
+            const user = JSON.parse(userStr);
+            if(user.role !== 'admin') window.location.href = '/';
+            document.getElementById('userName').innerText = "Hola, " + user.name;
+        } else {
+            window.location.href = '/login';
+        }
+
+        function logoutAdmin() {
+            localStorage.removeItem('km0_user');
+            window.location.href = '/';
+        }
+
+        function switchTab(tabId, updateHistory = true) {
+            document.querySelectorAll('.content-panel').forEach(el => el.classList.remove('active'));
+            document.querySelectorAll('.menu-item').forEach(el => el.classList.remove('active'));
+            
+            const panel = document.getElementById(tabId);
+            if (panel) panel.classList.add('active');
+            
+            const menuItem = document.querySelector(`[onclick*="switchTab('${tabId}')"]`);
+            if (menuItem) menuItem.classList.add('active');
+
+            if (updateHistory) {
+                history.pushState({ tab: tabId }, '', '#' + tabId);
+            }
+        }
+
+        window.addEventListener('popstate', (event) => {
+            if (event.state && event.state.tab) {
+                switchTab(event.state.tab, false);
+            } else {
+                const hash = window.location.hash.substring(1);
+                if (hash && document.getElementById(hash)) {
+                    switchTab(hash, false);
+                } else {
+                    switchTab('tab-producers', false); // Default for admin
+                }
+            }
+        });
+
+        window.addEventListener('DOMContentLoaded', () => {
+            const hash = window.location.hash.substring(1);
+            if (hash && document.getElementById(hash)) {
+                switchTab(hash, false);
+            } else {
+                history.replaceState({ tab: 'tab-producers' }, '', '#tab-producers');
+            }
+        });
+
+        function verifyProducer(id) {
+            if(!confirm('¿Estás seguro de verificar la veracidad de los documentos de este productor?')) return;
+            
+            fetch('/api/producers/' + id + '/verify', { method: 'POST' })
+            .then(r => r.json())
+            .then(data => {
+                if(data.success) {
+                    document.getElementById('badge-' + id).className = 'badge badge-success';
+                    document.getElementById('badge-' + id).innerHTML = '<i class="fa-solid fa-check"></i> Verificado';
+                    document.getElementById('btn-' + id).style.display = 'none';
+                }
+            });
+        }
+
+        function toggleBlock(type, id, block) {
+            if(!confirm(`¿Estás seguro de ${block ? 'bloquear' : 'desbloquear'} a este ${type}?`)) return;
+            fetch('/api/admin/block', {
+                method: 'POST', headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ type, id, block })
+            }).then(() => window.location.reload());
+        }
+
+        function removePhoto(id) {
+            if(!confirm('¿Estás seguro de eliminar la foto de perfil de este productor por ser inapropiada?')) return;
+            fetch('/api/admin/remove-photo', {
+                method: 'POST', headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ id })
+            }).then(() => window.location.reload());
+        }
+
+        function cancelOrder(order_id) {
+            if(!confirm('¿Estás seguro de cancelar esta transacción?')) return;
+            fetch('/api/admin/cancel-order', {
+                method: 'POST', headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ order_id })
+            }).then(() => window.location.reload());
+        }
+    </script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>
