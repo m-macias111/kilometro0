@@ -202,10 +202,19 @@
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(payload)
-            }).then(r=>r.json()).then(() => {
+            })
+            .then(r => r.json())
+            .then(data => {
+                if(!data.success) {
+                    alert('Error al registrarse: ' + data.message);
+                    return;
+                }
                 localStorage.setItem('km0_user', JSON.stringify({ email: email, name: name, role: role }));
                 if(role === 'productor') window.location.href = '/producer-app';
                 else window.location.href = '/client-app';
+            })
+            .catch(err => {
+                alert('Error de conexión con el servidor: ' + err.message);
             });
         }
     </script>

@@ -35,8 +35,12 @@
             <button class="btn btn-primary" type="submit" style="width: 100%; margin-top: 1rem;">Entrar</button>
             <p id="loginError" style="color:red; margin-top:1rem; font-weight:600; display:none;"></p>
         </form>
-        
-        <p style="margin-top: 2rem; color: var(--text-light);">
+
+        <p style="margin-top:1rem; font-size:0.9rem;">
+            <a href="/forgot-password" style="color:var(--text-light);">¿Olvidaste tu contraseña?</a>
+        </p>
+
+        <p style="margin-top: 1rem; color: var(--text-light);">
             ¿No tienes cuenta? <a href="/register" style="color: var(--primary); font-weight: bold;">Regístrate</a>
         </p>
         <p style="margin-top: 1rem;">
@@ -50,20 +54,29 @@
             const email = document.getElementById('email').value;
             const password = document.getElementById('password').value;
 
+            const errEl = document.getElementById('loginError');
+            errEl.style.display = 'none';
+
             fetch('/api/login', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ email, password })
-            }).then(r => r.json()).then(data => {
+            })
+            .then(r => r.json())
+            .then(data => {
                 if(!data.success) {
-                    document.getElementById('loginError').innerText = data.message;
-                    document.getElementById('loginError').style.display = 'block';
+                    errEl.innerText = data.message;
+                    errEl.style.display = 'block';
                     return;
                 }
                 localStorage.setItem('km0_user', JSON.stringify(data.user));
                 if(data.user.role === 'admin') window.location.href = '/admin-app';
                 else if(data.user.role === 'productor') window.location.href = '/producer-app';
                 else window.location.href = '/client-app';
+            })
+            .catch(err => {
+                errEl.innerText = 'Error de conexión con el servidor: ' + err.message;
+                errEl.style.display = 'block';
             });
         }
     </script>

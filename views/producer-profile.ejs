@@ -8,9 +8,13 @@
         body { background: #f4f6f8; overflow: hidden; }
         .dashboard { display: grid; grid-template-columns: 250px 1fr; height: 100vh; }
         
+        <% if(from === 'admin') { %>
+        .side-nav { background: linear-gradient(180deg, #2c3e50 0%, #1a252f 100%); padding: 2rem 1.5rem; display: flex; flex-direction: column; gap: 1rem; }
+        <% } else { %>
         .side-nav { background: linear-gradient(180deg, #1a7a3a 0%, #145a2b 100%); padding: 2rem 1.5rem; display: flex; flex-direction: column; gap: 1rem; }
+        <% } %>
         .side-nav .logo { margin-bottom: 2rem; color: white; }
-        .side-nav .logo i { color: #8fff8f; }
+        .side-nav .logo i { color: <% if(from === 'admin') { %>rgba(255,255,255,0.6)<% } else { %>#8fff8f<% } %>; }
         .side-nav .logo span { color: white; }
         .nav-item { padding: 1rem; border-radius: 12px; cursor: pointer; font-weight: 600; color: rgba(255,255,255,0.8); display: flex; align-items: center; gap: 12px; transition: 0.3s; }
         .nav-item:hover { background: rgba(255,255,255,0.2); color: white; }
@@ -49,22 +53,28 @@
     <div class="dashboard">
         <div class="side-nav">
             <div class="logo">
-                <i class="fa-solid fa-leaf"></i>
+                <i class="fa-solid fa-<%= from === 'admin' ? 'shield-halved' : 'leaf' %>"></i>
                 <span>Kilómetro 0</span>
             </div>
-            <div class="nav-item" onclick="window.location.href='/'">
-                <i class="fa-solid fa-arrow-left"></i> Volver a Tienda
-            </div>
-            <div class="nav-item" onclick="toggleCart()">
-                <i class="fa-solid fa-basket-shopping"></i> Ver Cesta (<span id="cartCount">0</span>)
-            </div>
+            <% if(from === 'admin') { %>
+                <div class="nav-item" onclick="window.location.href='/admin-app'">
+                    <i class="fa-solid fa-arrow-left"></i> Volver al Panel
+                </div>
+            <% } else { %>
+                <div class="nav-item" onclick="window.location.href='/'">
+                    <i class="fa-solid fa-arrow-left"></i> Volver a Tienda
+                </div>
+                <div class="nav-item" onclick="toggleCart()">
+                    <i class="fa-solid fa-basket-shopping"></i> Ver Cesta (<span id="cartCount">0</span>)
+                </div>
+            <% } %>
         </div>
 
         <div class="main-content">
             <% if(producer) { %>
                 <div class="producer-hero">
                     <% if(producer.profileImage) { %>
-                        <img src="<%= producer.profileImage %>" class="producer-avatar" style="object-fit:cover;">
+                        <img src="<%= producer.profileImage %>" style="width:120px; height:120px; border-radius:50%; object-fit:cover; flex-shrink:0; border:3px solid #eee;">
                     <% } else { %>
                         <div class="producer-avatar"><i class="fa-solid fa-tractor"></i></div>
                     <% } %>
@@ -84,6 +94,16 @@
                     </div>
                 </div>
 
+                <% if(avgRating && from !== 'admin') { %>
+                <div style="display:flex; align-items:center; gap:8px; margin-top:0.5rem;">
+                    <% for(let i=1; i<=5; i++) { %>
+                        <i class="fa-solid fa-star" style="color:<%= i <= Math.round(parseFloat(avgRating)) ? '#f39c12' : '#ddd' %>; font-size:1rem;"></i>
+                    <% } %>
+                    <span style="font-weight:700; color:#f39c12;"><%= avgRating %></span>
+                    <span style="color:gray; font-size:0.85rem;">(<%= reviews.length %> reseña<%= reviews.length !== 1 ? 's' : '' %>)</span>
+                </div>
+                <% } %>
+
                 <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1.5rem;">
                     <h2><i class="fa-solid fa-boxes-stacked" style="color:var(--primary); margin-right:8px;"></i> Sus productos (<%= products.length %>)</h2>
                 </div>
@@ -98,7 +118,9 @@
                                 <div class="pickup-tag"><i class="fa-solid fa-calendar-check"></i> Recogida: <%= p.pickup_day %></div>
                                 <div style="display:flex; justify-content:space-between; align-items:center;">
                                     <span style="font-weight:bold; font-size:1.1rem; color:var(--text-light);"><%= p.kg %>kg</span>
-                                    <button class="btn btn-primary" style="padding:0.5rem 1.2rem; font-weight:700;" onclick="addToCart(<%= p.id %>)"><i class="fa-solid fa-basket-shopping"></i> Comprar</button>
+                                    <% if(from !== 'admin') { %>
+                                        <button class="btn btn-primary" style="padding:0.5rem 1.2rem; font-weight:700;" onclick="addToCart(<%= p.id %>)"><i class="fa-solid fa-basket-shopping"></i> Comprar</button>
+                                    <% } %>
                                 </div>
                             </div>
                         </div>
@@ -108,12 +130,56 @@
                         <p style="color:gray; grid-column:1/-1; text-align:center; padding:3rem;">Este productor no tiene productos activos ahora mismo.</p>
                     <% } %>
                 </div>
+            <% if(from !== 'admin' && reviews && reviews.length > 0) { %>
+                <div style="margin-top:3rem;">
+                    <h3 style="margin-bottom:1.5rem;"><i class="fa-solid fa-star" style="color:#f39c12;"></i> Reseñas de clientes</h3>
+                    <% reviews.forEach(function(r) { %>
+                        <div style="border:1px solid #eee; border-radius:12px; padding:1.2rem; margin-bottom:1rem;">
+                            <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:0.5rem;">
+                                <div style="display:flex; align-items:center; gap:6px;">
+                                    <div style="width:34px; height:34px; border-radius:50%; background:var(--primary); display:flex; align-items:center; justify-content:center; color:white; font-weight:700; font-size:0.9rem; flex-shrink:0;"><%= r.client_name ? r.client_name.charAt(0).toUpperCase() : '?' %></div>
+                                    <span style="font-weight:700; font-size:0.95rem;"><%= r.client_name || 'Cliente' %></span>
+                                </div>
+                                <div>
+                                    <% for(let i=1; i<=5; i++) { %>
+                                        <i class="fa-solid fa-star" style="color:<%= i <= r.rating ? '#f39c12' : '#ddd' %>; font-size:0.85rem;"></i>
+                                    <% } %>
+                                    <span style="font-size:0.78rem; color:gray; margin-left:4px;"><%= new Date(r.created_at).toLocaleDateString('es-ES') %></span>
+                                </div>
+                            </div>
+                            <% if(r.comment) { %>
+                                <p style="margin:0; font-size:0.9rem; color:#555; font-style:italic;">"<%= r.comment %>"</p>
+                            <% } %>
+                        </div>
+                    <% }); %>
+                </div>
+            <% } %>
+
+            <!-- Formulario de reseña (solo para clientes logueados) -->
+            <% if(from !== 'admin' && producer) { %>
+            <div id="reviewFormContainer" style="display:none; margin-top:2rem; background:#f9f9f9; border-radius:12px; padding:1.5rem;">
+                <h4 style="margin-bottom:1rem;"><i class="fa-solid fa-pen" style="color:var(--primary);"></i> Deja tu valoración</h4>
+                <div style="display:flex; gap:8px; margin-bottom:1rem;" id="starRating">
+                    <% for(let i=1; i<=5; i++) { %>
+                        <i class="fa-solid fa-star" data-val="<%= i %>" style="font-size:1.8rem; cursor:pointer; color:#ddd; transition:0.2s;"
+                           onmouseover="highlightStars(<%= i %>)" onmouseout="resetStars()"
+                           onclick="selectRating(<%= i %>)"></i>
+                    <% } %>
+                </div>
+                <input type="hidden" id="selectedRating" value="0">
+                <textarea id="reviewComment" placeholder="Comparte tu experiencia (opcional)..." style="width:100%; padding:0.8rem; border:1px solid #ddd; border-radius:8px; font-family:'Inter'; height:90px; resize:vertical; margin-bottom:0.8rem;"></textarea>
+                <button class="btn btn-primary" onclick="submitReview(<%= producer.id %>)" style="padding:0.6rem 1.5rem;"><i class="fa-solid fa-paper-plane"></i> Publicar Reseña</button>
+                <span id="reviewMsg" style="margin-left:1rem; font-size:0.85rem; display:none;"></span>
+            </div>
+            <% } %>
+
             <% } else { %>
                 <h2>Productor no encontrado.</h2>
             <% } %>
         </div>
     </div>
 
+    <% if(from !== 'admin') { %>
     <!-- Floating Cart Button -->
     <button class="floating-cart-btn" id="floatingCartBtn" onclick="toggleCart()" style="display:none;">
         <i class="fa-solid fa-basket-shopping"></i> Ver Cesta
@@ -138,11 +204,60 @@
 
     <!-- Toast Notification -->
     <div id="toast" style="position:fixed; bottom:-100px; left:50%; transform:translateX(-50%); background:#333; color:white; padding:12px 24px; border-radius:30px; font-weight:600; box-shadow:0 5px 15px rgba(0,0,0,0.2); transition:bottom 0.4s; z-index:9999;"></div>
+    <% } %>
 
     <script>
         const productsData = <%- JSON.stringify(products) %>;
         const producerName = '<%= producer ? producer.name : "" %>';
 
+        // Mostrar formulario de reseña solo si el usuario es cliente
+        const userStr = localStorage.getItem('km0_user');
+        if (userStr) {
+            const user = JSON.parse(userStr);
+            if (user.role === 'cliente') {
+                const rf = document.getElementById('reviewFormContainer');
+                if (rf) rf.style.display = 'block';
+            }
+        }
+
+        // Stars rating
+        let currentRating = 0;
+        function highlightStars(val) {
+            document.querySelectorAll('#starRating i').forEach((s, i) => {
+                s.style.color = i < val ? '#f39c12' : '#ddd';
+            });
+        }
+        function resetStars() { highlightStars(currentRating); }
+        function selectRating(val) {
+            currentRating = val;
+            document.getElementById('selectedRating').value = val;
+            highlightStars(val);
+        }
+
+        function submitReview(producerId) {
+            const rating = parseInt(document.getElementById('selectedRating').value);
+            const comment = document.getElementById('reviewComment').value.trim();
+            const msgEl = document.getElementById('reviewMsg');
+            if (!rating) { msgEl.innerText = 'Por favor selecciona una valoración.'; msgEl.style.color = 'red'; msgEl.style.display = 'inline'; return; }
+            fetch('/api/reviews', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ producer_id: producerId, rating, comment })
+            }).then(r => r.json()).then(data => {
+                if (data.success) {
+                    msgEl.innerText = '¡Reseña publicada! Gracias por tu valoración.';
+                    msgEl.style.color = 'var(--primary)';
+                    msgEl.style.display = 'inline';
+                    setTimeout(() => window.location.reload(), 1500);
+                } else {
+                    msgEl.innerText = data.message || 'No se pudo publicar la reseña.';
+                    msgEl.style.color = 'red';
+                    msgEl.style.display = 'inline';
+                }
+            });
+        }
+
+        <% if(from !== 'admin') { %>
         function showToast(msg, isError=false) {
             const t = document.getElementById('toast');
             t.innerText = msg;
@@ -160,7 +275,6 @@
         function addToCart(id) {
             const product = productsData.find(p => p.id === id);
             if(!product) return;
-            // Enrich with producer_name for cart display
             product.producer_name = product.producer_name || producerName;
             cart.push(product);
             localStorage.setItem('km0_cart', JSON.stringify(cart));
@@ -171,7 +285,6 @@
         function updateCartUI() {
             const counts = [document.getElementById('cartCount'), document.getElementById('floatingBadge')];
             counts.forEach(el => { if(el) el.innerText = cart.length; });
-            // Show/hide floating button
             document.getElementById('floatingCartBtn').style.display = cart.length > 0 ? 'flex' : 'none';
 
             const body = document.getElementById('cartItems');
@@ -226,27 +339,59 @@
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ items: cart, client_email })
             }).then(r => r.json()).then(data => {
-                const pickupInfo = [...new Set(cart.map(p => `<li><b>${p.producer_name}</b></li>`))].join('');
-                const emailNote = data.emailPreviewUrl 
+                const fecha = new Date().toLocaleDateString('es-ES', { day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit' });
+                const qrPayload = JSON.stringify({
+                    ref: data.qr_code,
+                    txId: data.order_id,
+                    cliente: client_email,
+                    articulos: cart.map(p => ({ nombre: p.name, productor: p.producer_name, precio: p.price.toFixed(2) })),
+                    total: cart.reduce((s, p) => s + p.price, 0).toFixed(2),
+                    fecha
+                });
+
+                const itemsHtml = cart.map(p =>
+                    `<div style="display:flex; justify-content:space-between; padding:0.4rem 0; border-bottom:1px dashed #eee; font-size:0.85rem;">
+                        <span><b>${p.name}</b> <span style="color:gray;">· ${p.producer_name}</span></span>
+                        <span style="font-weight:700; color:var(--primary);">${p.price.toFixed(2)}€</span>
+                    </div>`
+                ).join('');
+                const total = cart.reduce((s, p) => s + p.price, 0);
+
+                const emailNote = data.emailPreviewUrl
                     ? `<div style="background:#fff3cd; padding:12px; border-radius:8px; margin-top:1rem; border:1px solid #ffc107;">
                         <p style="margin:0; font-size:0.85rem; color:#856404;"><i class="fa-solid fa-flask"></i> <b>Modo de pruebas:</b> El correo no llega a tu buzón real. Puedes verlo aquí:</p>
                         <a href="${data.emailPreviewUrl}" target="_blank" style="display:block; text-align:center; margin-top:8px; background:#1a7a3a; color:white; padding:10px; border-radius:8px; text-decoration:none; font-weight:700;"><i class="fa-solid fa-envelope-open-text"></i> Ver Email de Confirmación</a>
                        </div>`
-                    : `<p style="margin-top:1rem; font-size:0.85rem; color:gray;"><i class="fa-solid fa-check-circle" style="color:var(--primary);"></i> Email enviado correctamente a <b>${client_email}</b></p>`;
+                    : `<p style="margin-top:1rem; font-size:0.85rem; color:gray;"><i class="fa-solid fa-check-circle" style="color:var(--primary);"></i> Email enviado a <b>${client_email}</b></p>`;
+
                 document.getElementById('cartItems').innerHTML = `
-                    <div style="text-align:center; padding:2rem 0;">
-                        <i class="fa-solid fa-circle-check" style="font-size:4rem; color:var(--primary); margin-bottom:1rem;"></i>
-                        <h2>¡Reserva Confirmada!</h2>
-                        <p style="color:gray; font-size:0.9rem;">Correo de confirmación para <b>${client_email}</b></p>
-                        <div id="qrcode-container" style="display:flex; justify-content:center; margin:1.5rem 0; padding:10px; background:white; border-radius:12px; box-shadow:0 5px 15px rgba(0,0,0,0.05);"></div>
-                        <p style="color:gray; font-size:0.9rem;">Referencia: ${data.qr_code}</p>
-                        <div style="text-align:left; background:#f9f9f9; padding:1rem; border-radius:8px; margin-top:1rem;">
-                            <h4 style="margin:0 0 0.5rem;"><i class="fa-solid fa-location-dot" style="color:var(--primary);"></i> Punto de recogida:</h4>
-                            <ul style="margin:0; padding-left:1.2rem; font-size:0.9rem; color:#555;">${pickupInfo}</ul>
+                    <div style="padding:1.5rem 0;">
+                        <div style="text-align:center; margin-bottom:1.5rem;">
+                            <i class="fa-solid fa-circle-check" style="font-size:3rem; color:var(--primary); margin-bottom:0.5rem;"></i>
+                            <h2 style="margin:0.3rem 0;">¡Reserva Confirmada!</h2>
+                        </div>
+                        <div style="display:flex; justify-content:center; margin:1rem 0;"><div id="qrcode-container" style="padding:12px; background:white; border-radius:12px; box-shadow:0 5px 15px rgba(0,0,0,0.05); display:inline-block;"></div></div>
+                        <div style="background:#f9f9f9; border-radius:10px; padding:1rem; font-size:0.85rem; margin-bottom:1rem;">
+                            <div style="display:flex; justify-content:space-between; margin-bottom:0.5rem;">
+                                <span style="color:gray;"><i class="fa-solid fa-hashtag"></i> ID Transacción</span>
+                                <span style="font-weight:700; font-family:monospace;">${data.qr_code}</span>
+                            </div>
+                            <div style="display:flex; justify-content:space-between; margin-bottom:0.8rem;">
+                                <span style="color:gray;"><i class="fa-solid fa-user"></i> Cliente</span>
+                                <span style="font-weight:600;">${client_email}</span>
+                            </div>
+                            <div style="border-top:1px solid #eee; padding-top:0.8rem;">
+                                <p style="margin:0 0 0.5rem; font-weight:600; color:#333;"><i class="fa-solid fa-boxes-stacked" style="color:var(--primary);"></i> Artículos</p>
+                                ${itemsHtml}
+                                <div style="display:flex; justify-content:space-between; padding-top:0.6rem; font-size:0.95rem;">
+                                    <span style="font-weight:700;">Total</span>
+                                    <span style="font-weight:800; color:var(--primary);">${total.toFixed(2)}€</span>
+                                </div>
+                            </div>
                         </div>
                         ${emailNote}
                     </div>`;
-                new QRCode(document.getElementById("qrcode-container"), { text: data.qr_code, width: 180, height: 180, colorDark: "#27ae60", colorLight: "#ffffff", correctLevel: QRCode.CorrectLevel.M });
+                new QRCode(document.getElementById("qrcode-container"), { text: qrPayload, width: 160, height: 160, colorDark: "#1a7a3a", colorLight: "#ffffff", correctLevel: QRCode.CorrectLevel.M });
                 document.getElementById('cartFooter').style.display = 'none';
                 document.getElementById('floatingCartBtn').style.display = 'none';
                 cart = [];
@@ -257,6 +402,7 @@
         
         // Initial setup
         updateCartUI();
+        <% } %>
     </script>
     <%- include('partials/footer') %>
 </body>

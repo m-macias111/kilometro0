@@ -9,13 +9,10 @@
         .menu-bar { background: linear-gradient(180deg, #1a7a3a 0%, #145a2b 100%); padding: 2rem 1.5rem; border-radius: 16px; box-shadow: var(--shadow-sm); display: flex; flex-direction: column; gap: 1rem; height: fit-content; }
         .menu-item { padding: 1rem; border-radius: 8px; cursor: pointer; transition: 0.3s; font-weight: 600; color: rgba(255,255,255,0.75); display: flex; align-items: center; gap: 10px; }
         .menu-item:hover, .menu-item.active { background: rgba(255,255,255,0.2); color: white; }
-
         .content-area { background: white; padding: 2rem; border-radius: 16px; box-shadow: var(--shadow-sm); min-height: 500px; }
         .content-panel { display: none; }
         .content-panel.active { display: block; animation: fadeIn 0.4s ease; }
-
         @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
-
         .order-card { border: 1px solid #e8e8e8; border-radius: 12px; padding: 1.5rem; margin-bottom: 1rem; transition: 0.3s; }
         .order-card:hover { border-color: var(--primary); }
         .order-card .order-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 1rem; }
@@ -23,10 +20,8 @@
         .status-PENDING { background: #fff3cd; color: #856404; }
         .status-COMPLETED { background: #d1fae5; color: #065f46; }
         .status-CANCELLED { background: #fee2e2; color: #991b1b; }
-
         .qr-display { background: #f0fff0; border: 2px dashed var(--primary); padding: 1rem; border-radius: 8px; text-align: center; margin-top: 1rem; font-size: 1.1rem; font-weight: 700; letter-spacing: 2px; color: #1a7a3a; cursor: pointer; }
         .qr-display:hover { background: #e0ffe0; }
-
         .fav-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 1.5rem; }
         .fav-card { background: white; border-radius: 12px; overflow: hidden; border: 1px solid #eee; transition: 0.3s; position: relative; }
         .fav-card:hover { transform: translateY(-3px); box-shadow: var(--shadow-md); border-color: var(--primary); }
@@ -34,13 +29,13 @@
         .fav-card .card-info { padding: 1rem; }
         .fav-card .remove-fav { position: absolute; top: 8px; right: 8px; background: rgba(255,255,255,0.9); border: none; border-radius: 50%; width: 30px; height: 30px; cursor: pointer; color: #e74c3c; display: flex; align-items: center; justify-content: center; transition: 0.2s; }
         .fav-card .remove-fav:hover { background: #e74c3c; color: white; }
-
         .profile-info { background: rgba(46,204,113,0.05); border: 1px solid rgba(46,204,113,0.2); padding: 1.5rem; border-radius: 12px; margin-bottom: 1.5rem; }
-
-        /* Modal QR */
         .modal-overlay { position: fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); z-index:5000; display:none; justify-content:center; align-items:center; backdrop-filter:blur(3px); }
         .modal-overlay.open { display:flex; }
-        .modal-box { background:white; padding:2.5rem; border-radius:16px; width:100%; max-width:360px; text-align:center; box-shadow: var(--shadow-md); }
+        .modal-box { background:white; padding:2.5rem; border-radius:16px; width:100%; max-width:380px; text-align:center; box-shadow: var(--shadow-md); }
+        .filter-bar { display:flex; gap:0.5rem; margin-bottom:1.5rem; flex-wrap:wrap; }
+        .filter-btn { padding:0.35rem 0.85rem; border-radius:20px; border:2px solid #ddd; background:white; cursor:pointer; font-weight:600; font-size:0.85rem; font-family:inherit; transition:0.2s; }
+        .filter-btn.active { border-color:var(--primary); background:var(--primary); color:white; }
     </style>
 </head>
 <body>
@@ -49,18 +44,27 @@
             <i class="fa-solid fa-leaf" style="color:#8fff8f;"></i>
             <span style="color:white;">Mi Cuenta</span>
         </div>
-        <div class="nav-links">
-            <span style="font-weight:600; margin-right:1rem; color:white;"><%= client.name %> <%= client.lastName || '' %></span>
-            <button onclick="doLogout()" class="btn btn-outline" style="border-color:rgba(255,255,255,0.5); color:white;">Cerrar Sesión</button>
+        <div class="nav-links" style="display:flex; align-items:center; gap:0.75rem;">
+            <div onclick="switchTab('tab-profile')" title="Mi perfil" style="display:flex; align-items:center; gap:0.6rem; cursor:pointer; padding:0.4rem 0.8rem; border-radius:30px; background:rgba(255,255,255,0.15); transition:0.2s;" onmouseover="this.style.background='rgba(255,255,255,0.25)'" onmouseout="this.style.background='rgba(255,255,255,0.15)'">
+                <% if(client.profileImage) { %>
+                    <img src="<%= client.profileImage %>" style="width:32px; height:32px; border-radius:50%; object-fit:cover; border:2px solid rgba(255,255,255,0.6); flex-shrink:0;">
+                <% } else { %>
+                    <div style="width:32px; height:32px; border-radius:50%; background:rgba(255,255,255,0.2); display:flex; align-items:center; justify-content:center; flex-shrink:0; font-weight:700; color:white; font-size:0.9rem;"><%= client.name.charAt(0).toUpperCase() %></div>
+                <% } %>
+                <span style="font-weight:600; color:white; font-size:0.9rem;"><%= client.name %></span>
+            </div>
+            <button onclick="doLogout()" style="background:#e74c3c; color:white; border:none; padding:0.5rem 1rem; border-radius:8px; font-weight:700; cursor:pointer; font-family:inherit; font-size:0.9rem; display:flex; align-items:center; gap:6px; transition:0.2s;" onmouseover="this.style.background='#c0392b'" onmouseout="this.style.background='#e74c3c'"><i class="fa-solid fa-right-from-bracket"></i> Cerrar Sesión</button>
         </div>
     </nav>
 
     <div class="dashboard-container">
         <div class="menu-bar">
             <div style="text-align:center; margin-bottom:0.5rem;">
-                <div style="width:70px; height:70px; border-radius:50%; background:rgba(255,255,255,0.15); display:flex; align-items:center; justify-content:center; margin:0 auto; font-size:2rem; color:white;">
-                    <i class="fa-solid fa-user"></i>
-                </div>
+                <% if(client.profileImage) { %>
+                    <img src="<%= client.profileImage %>" style="width:70px; height:70px; border-radius:50%; object-fit:cover; border:3px solid rgba(255,255,255,0.3); margin:0 auto; display:block;">
+                <% } else { %>
+                    <div style="width:70px; height:70px; border-radius:50%; background:rgba(255,255,255,0.15); display:flex; align-items:center; justify-content:center; margin:0 auto; font-size:1.8rem; font-weight:700; color:white;"><%= client.name.charAt(0).toUpperCase() %></div>
+                <% } %>
                 <p style="color:rgba(255,255,255,0.7); font-size:0.85rem; margin-top:8px;"><%= client.email %></p>
             </div>
             <div class="menu-item active" onclick="switchTab('tab-orders')"><i class="fa-solid fa-receipt"></i> Mis Pedidos</div>
@@ -73,7 +77,7 @@
 
             <!-- TAB: Pedidos -->
             <div id="tab-orders" class="content-panel active">
-                <h2 style="margin-bottom:1.5rem;"><i class="fa-solid fa-receipt" style="color:var(--primary); margin-right:8px;"></i> Mis Pedidos</h2>
+                <h2 style="margin-bottom:1.2rem;"><i class="fa-solid fa-receipt" style="color:var(--primary); margin-right:8px;"></i> Mis Pedidos</h2>
 
                 <% if(orders.length === 0) { %>
                     <div style="text-align:center; padding:4rem 2rem; color:gray;">
@@ -83,8 +87,17 @@
                         <a href="/" class="btn btn-primary" style="margin-top:1rem;">Ver Tienda</a>
                     </div>
                 <% } else { %>
+                    <!-- Filtros de estado -->
+                    <div class="filter-bar">
+                        <button class="filter-btn active" onclick="filterOrders('Todos', this)">Todos (<%= orders.length %>)</button>
+                        <button class="filter-btn" onclick="filterOrders('PENDING', this)">Pendientes (<%= orders.filter(o => o.status === 'PENDING').length %>)</button>
+                        <button class="filter-btn" onclick="filterOrders('COMPLETED', this)">Completados (<%= orders.filter(o => o.status === 'COMPLETED').length %>)</button>
+                        <button class="filter-btn" onclick="filterOrders('CANCELLED', this)">Cancelados (<%= orders.filter(o => o.status === 'CANCELLED').length %>)</button>
+                    </div>
+
+                    <div id="ordersList">
                     <% orders.forEach(function(o) { %>
-                        <div class="order-card">
+                        <div class="order-card" data-status="<%= o.status %>">
                             <div class="order-header">
                                 <div>
                                     <h4 style="margin:0 0 4px 0;">Pedido #<%= o.order_id %></h4>
@@ -106,19 +119,37 @@
                             <% if(o.items && o.items.length > 0) { %>
                                 <ul style="margin:0; padding-left:1.2rem; font-size:0.9rem; color:#555;">
                                     <% o.items.filter(i => i.name).forEach(function(item) { %>
-                                        <li><%= item.name %> — <b><%= parseFloat(item.price).toFixed(2) %>€</b></li>
+                                        <li><%= item.name %><% if(item.qty > 1) { %> × <%= item.qty %><% } %> — <b><%= parseFloat(item.price).toFixed(2) %>€</b></li>
                                     <% }); %>
                                 </ul>
                             <% } %>
 
+                            <% if(o.status === 'CANCELLED' && o.rejection_reason) { %>
+                                <p style="margin-top:0.7rem; font-size:0.85rem; color:#991b1b; background:#fee2e2; padding:0.5rem 0.8rem; border-radius:6px;">
+                                    <i class="fa-solid fa-circle-exclamation"></i> Motivo: <%= o.rejection_reason %>
+                                </p>
+                            <% } %>
+
                             <% if(o.status === 'PENDING') { %>
-                                <div class="qr-display" onclick="showQR('<%= o.qr_code %>')">
-                                    <i class="fa-solid fa-qrcode"></i> <%= o.qr_code %>
-                                    <p style="font-size:0.75rem; font-weight:400; margin:4px 0 0; color:#555;">Pulsa para ver el código QR completo</p>
+                                <div style="display:flex; gap:0.5rem; margin-top:1rem; flex-wrap:wrap;">
+                                    <% if(o.qr_payload) { %>
+                                        <div class="qr-display" onclick="showQR('<%= encodeURIComponent(o.qr_payload) %>')" style="flex:1; min-width:180px;">
+                                            <i class="fa-solid fa-qrcode"></i> Ver Código QR
+                                            <p style="font-size:0.75rem; font-weight:400; margin:4px 0 0; color:#555;">Muéstralo al productor al recoger</p>
+                                        </div>
+                                    <% } else { %>
+                                        <div class="qr-display" style="flex:1; min-width:180px; cursor:default; opacity:0.6;">
+                                            <i class="fa-solid fa-qrcode"></i> <%= o.qr_code %>
+                                        </div>
+                                    <% } %>
+                                    <button onclick="cancelOrder(<%= o.order_id %>)" class="btn btn-outline" style="color:#e74c3c; border-color:#e74c3c; padding:0.6rem 1rem; font-size:0.85rem; align-self:center;" onmouseover="this.style.background='#fee2e2'" onmouseout="this.style.background='transparent'">
+                                        <i class="fa-solid fa-ban"></i> Cancelar
+                                    </button>
                                 </div>
                             <% } %>
                         </div>
                     <% }); %>
+                    </div>
                 <% } %>
             </div>
 
@@ -148,13 +179,16 @@
                                     </p>
                                     <div style="display:flex; justify-content:space-between; align-items:center; margin-top:0.8rem;">
                                         <span style="font-weight:800; color:var(--primary); font-size:1.1rem;"><%= parseFloat(p.price).toFixed(2) %>€</span>
-                                        <a href="/" class="btn btn-primary" style="padding:0.4rem 0.8rem; font-size:0.8rem;">
-                                            <i class="fa-solid fa-basket-shopping"></i> Comprar
-                                        </a>
+                                        <button onclick="addFavToCart(<%= p.id %>, '<%= encodeURIComponent(JSON.stringify(p)) %>')" class="btn btn-primary" style="padding:0.4rem 0.8rem; font-size:0.8rem;">
+                                            <i class="fa-solid fa-basket-shopping"></i> Al Carrito
+                                        </button>
                                     </div>
                                 </div>
                             </div>
                         <% }); %>
+                    </div>
+                    <div style="background:#f0fff0; border-radius:10px; padding:1rem; margin-top:1.5rem; text-align:center;">
+                        <p style="margin:0; font-size:0.9rem; color:#1a7a3a; font-weight:600;"><i class="fa-solid fa-circle-info"></i> Los productos añadidos al carrito estarán disponibles cuando vayas a la tienda.</p>
                     </div>
                 <% } %>
             </div>
@@ -164,9 +198,11 @@
                 <h2 style="margin-bottom:1.5rem;"><i class="fa-solid fa-circle-user" style="color:var(--primary); margin-right:8px;"></i> Mi Perfil</h2>
                 <div class="profile-info">
                     <div style="display:flex; align-items:center; gap:1.5rem; flex-wrap:wrap;">
-                        <div style="width:80px; height:80px; border-radius:50%; background:var(--primary); display:flex; align-items:center; justify-content:center; font-size:2rem; color:white; font-weight:700; flex-shrink:0;">
-                            <%= client.name.charAt(0).toUpperCase() %>
-                        </div>
+                        <% if(client.profileImage) { %>
+                            <img src="<%= client.profileImage %>" style="width:80px; height:80px; border-radius:50%; object-fit:cover; border:3px solid var(--primary); flex-shrink:0;">
+                        <% } else { %>
+                            <div style="width:80px; height:80px; border-radius:50%; background:var(--primary); display:flex; align-items:center; justify-content:center; font-size:2rem; color:white; font-weight:700; flex-shrink:0;"><%= client.name.charAt(0).toUpperCase() %></div>
+                        <% } %>
                         <div>
                             <h3 style="margin:0;"><%= client.name %> <%= client.lastName || '' %></h3>
                             <p style="color:gray; margin:4px 0 0;"><i class="fa-solid fa-envelope"></i> <%= client.email %></p>
@@ -175,10 +211,18 @@
                             </span>
                         </div>
                     </div>
+                    <div style="margin-top:1.2rem; border-top:1px solid rgba(46,204,113,0.2); padding-top:1.2rem;">
+                        <label style="font-weight:600; font-size:0.9rem; display:block; margin-bottom:0.5rem;"><i class="fa-solid fa-image" style="color:var(--primary);"></i> Foto de perfil (URL)</label>
+                        <div style="display:flex; gap:0.5rem;">
+                            <input type="text" id="clientProfileImage" value="<%= client.profileImage || '' %>" placeholder="https://..." style="flex:1; padding:0.6rem; border:1px solid #ddd; border-radius:8px; font-family:inherit; font-size:0.9rem;">
+                            <button onclick="saveClientProfile()" class="btn btn-primary" style="padding:0.6rem 1rem; white-space:nowrap;"><i class="fa-solid fa-floppy-disk"></i> Guardar</button>
+                        </div>
+                        <span id="clientProfileMsg" style="color:var(--primary); font-weight:600; font-size:0.85rem; display:none; margin-top:0.4rem;">¡Foto actualizada! Recarga para verla.</span>
+                    </div>
                 </div>
                 <div style="background:#f9f9f9; border-radius:12px; padding:1.5rem;">
                     <h4 style="margin-bottom:1rem; color:var(--text-light);"><i class="fa-solid fa-chart-simple"></i> Resumen de actividad</h4>
-                    <div style="display:grid; grid-template-columns:repeat(3, 1fr); gap:1rem; text-align:center;">
+                    <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(130px, 1fr)); gap:1rem; text-align:center;">
                         <div style="background:white; padding:1.2rem; border-radius:8px; border:1px solid #eee;">
                             <div style="font-size:2rem; font-weight:800; color:var(--primary);"><%= orders.length %></div>
                             <div style="font-size:0.85rem; color:gray;">Pedidos totales</div>
@@ -186,6 +230,10 @@
                         <div style="background:white; padding:1.2rem; border-radius:8px; border:1px solid #eee;">
                             <div style="font-size:2rem; font-weight:800; color:#f39c12;"><%= orders.filter(o => o.status === 'PENDING').length %></div>
                             <div style="font-size:0.85rem; color:gray;">Pendientes</div>
+                        </div>
+                        <div style="background:white; padding:1.2rem; border-radius:8px; border:1px solid #eee;">
+                            <div style="font-size:1.6rem; font-weight:800; color:#1a7a3a;"><%= orders.filter(o => o.status === 'COMPLETED').reduce((s, o) => s + parseFloat(o.total_price), 0).toFixed(0) %>€</div>
+                            <div style="font-size:0.85rem; color:gray;">Gasto acumulado</div>
                         </div>
                         <div style="background:white; padding:1.2rem; border-radius:8px; border:1px solid #eee;">
                             <div style="font-size:2rem; font-weight:800; color:#e74c3c;"><%= favorites.length %></div>
@@ -204,13 +252,16 @@
             <h3 style="margin-bottom:0.5rem;"><i class="fa-solid fa-qrcode" style="color:var(--primary);"></i> Tu Código QR</h3>
             <p style="color:gray; font-size:0.9rem; margin-bottom:1.5rem;">Muéstralo al productor cuando vayas a recoger tu pedido.</p>
             <div id="qrModalCode" style="display:flex; justify-content:center; margin-bottom:1rem;"></div>
-            <p id="qrModalText" style="font-weight:700; font-size:1.1rem; letter-spacing:2px; color:#1a7a3a;"></p>
+            <p id="qrModalRef" style="font-weight:700; font-size:0.95rem; letter-spacing:1px; color:#1a7a3a; font-family:monospace;"></p>
             <button class="btn btn-outline" style="width:100%; margin-top:1rem;" onclick="closeQRModal()">Cerrar</button>
         </div>
     </div>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
     <script>
+        // Datos de favoritos embebidos para "añadir al carrito"
+        const favoritesData = <%- JSON.stringify(favorites) %>;
+
         function doLogout() {
             fetch('/api/logout', { method: 'POST' }).then(() => {
                 localStorage.removeItem('km0_user');
@@ -239,19 +290,45 @@
             else history.replaceState({ tab: 'tab-orders' }, '', '#tab-orders');
         });
 
-        // ── Modal QR ──────────────────────────────────────────────
-        let qrInstance = null;
+        // ── Filtro de estado en pedidos ───────────────────────────
+        function filterOrders(status, btn) {
+            document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            document.querySelectorAll('#ordersList .order-card').forEach(card => {
+                const show = status === 'Todos' || card.dataset.status === status;
+                card.style.display = show ? 'block' : 'none';
+            });
+        }
 
-        function showQR(code) {
+        // ── Cancelar pedido ───────────────────────────────────────
+        function cancelOrder(orderId) {
+            if (!confirm('¿Estás seguro de que quieres cancelar este pedido?')) return;
+            fetch('/api/orders/' + orderId + '/cancel', { method: 'POST' })
+            .then(r => r.json())
+            .then(data => {
+                if (data.success) window.location.reload();
+                else alert(data.message || 'No se pudo cancelar el pedido.');
+            })
+            .catch(() => alert('Error de conexión.'));
+        }
+
+        // ── Modal QR ──────────────────────────────────────────────
+        function showQR(encodedPayload) {
+            const payload = decodeURIComponent(encodedPayload);
             const container = document.getElementById('qrModalCode');
             container.innerHTML = '';
-            qrInstance = new QRCode(container, {
-                text: code,
-                width: 200, height: 200,
+            new QRCode(container, {
+                text: payload,
+                width: 220, height: 220,
                 colorDark: '#1a7a3a', colorLight: '#ffffff',
                 correctLevel: QRCode.CorrectLevel.M
             });
-            document.getElementById('qrModalText').innerText = code;
+            try {
+                const parsed = JSON.parse(payload);
+                document.getElementById('qrModalRef').innerText = parsed.ref || payload;
+            } catch(e) {
+                document.getElementById('qrModalRef').innerText = payload;
+            }
             document.getElementById('qrModal').classList.add('open');
         }
 
@@ -264,6 +341,22 @@
             if (e.target === this) closeQRModal();
         });
 
+        // ── Foto de perfil cliente ────────────────────────────────
+        function saveClientProfile() {
+            const profileImage = document.getElementById('clientProfileImage').value.trim();
+            fetch('/api/client/update-profile', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ profileImage })
+            }).then(r => r.json()).then(data => {
+                if (data.success) {
+                    const msg = document.getElementById('clientProfileMsg');
+                    msg.style.display = 'block';
+                    setTimeout(() => msg.style.display = 'none', 3000);
+                }
+            });
+        }
+
         // ── Quitar favorito ───────────────────────────────────────
         function removeFavorite(productId) {
             fetch('/api/favorites/toggle', {
@@ -274,7 +367,6 @@
                 if (data.success) {
                     const card = document.getElementById('fav-' + productId);
                     if (card) card.remove();
-                    // Si no quedan favoritos, mostrar mensaje vacío
                     const grid = document.getElementById('favGrid');
                     if (grid && grid.children.length === 0) {
                         grid.outerHTML = `<div style="text-align:center; padding:4rem 2rem; color:gray;">
@@ -284,6 +376,25 @@
                     }
                 }
             });
+        }
+
+        // ── Añadir favorito al carrito y redirigir a tienda ──────
+        function addFavToCart(productId, encodedData) {
+            try {
+                const product = JSON.parse(decodeURIComponent(encodedData));
+                const cart = JSON.parse(localStorage.getItem('km0_cart')) || [];
+                const existing = cart.find(c => c.id === product.id);
+                if (existing) {
+                    existing.qty = (existing.qty || 1) + 1;
+                } else {
+                    cart.push({ ...product, qty: 1 });
+                }
+                localStorage.setItem('km0_cart', JSON.stringify(cart));
+                // Redirigir a tienda mostrando el carrito
+                window.location.href = '/#products-view';
+            } catch (e) {
+                window.location.href = '/';
+            }
         }
     </script>
     <%- include('partials/footer') %>

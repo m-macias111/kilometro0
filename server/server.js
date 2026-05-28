@@ -38,6 +38,6 @@ const PORT = process.env.PORT || 3000;
 
 require('./config/email').init().then(() => {
     app.listen(PORT, () => {
-        console.log(`🌿 Kilómetro 0 corriendo en http://localhost:${PORT}`);
+        console.log(`Kilometro 0 corriendo en http://localhost:${PORT}`);
     });
 });

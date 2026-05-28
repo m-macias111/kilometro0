@@ -2,7 +2,9 @@ const express = require('express');
 const router = express.Router();
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
+const crypto = require('crypto');
 const pool = require('../config/db');
+const emailService = require('../config/email');
 const { JWT_SECRET } = require('../middleware/auth');
 
 const SALT_ROUNDS = 10;
@@ -11,8 +13,8 @@ const SALT_ROUNDS = 10;
 router.post('/api/login', async (req, res) => {
     const { email, password } = req.body;
 
-    // Admin hardcoded (no está en la base de datos)
-    if (email === 'admin@admin' && password === 'admin') {
+    // Admin desde .env
+    if (email === process.env.ADMIN_EMAIL && password === process.env.ADMIN_PASS) {
         const user = { email, name: 'Administrador', role: 'admin' };
         const token = jwt.sign(user, JWT_SECRET, { expiresIn: '24h' });
         res.cookie('km0_jwt', token, { httpOnly: true, maxAge: 24 * 60 * 60 * 1000 });
@@ -54,7 +56,6 @@ router.post('/api/register', async (req, res) => {
     const { name, lastName, email, role, password, dni, catastral, address, phone } = req.body;
 
     try {
-        // Verificar si el email ya existe
         const exists = await pool.query('SELECT id FROM users WHERE email = $1', [email]);
         if (exists.rows.length > 0) {
             return res.json({ success: false, message: 'Este correo ya está registrado.' });
@@ -90,6 +91,92 @@ router.post('/api/register', async (req, res) => {
     } catch (err) {
         console.error('Error en registro:', err.message);
         res.status(500).json({ success: false, message: 'Error del servidor.' });
+    }
+});
+
+// ── POST /api/auth/forgot-password ───────────────────────────────
+router.post('/api/auth/forgot-password', async (req, res) => {
+    const { email } = req.body;
+    if (!email) return res.status(400).json({ success: false, message: 'Email requerido.' });
+
+    try {
+        const result = await pool.query('SELECT id, name FROM users WHERE email = $1', [email]);
+        // Siempre devolvemos éxito para no revelar si el email existe
+        if (result.rows.length === 0) return res.json({ success: true });
+
+        const user = result.rows[0];
+        const token = crypto.randomBytes(32).toString('hex');
+        const expiresAt = new Date(Date.now() + 60 * 60 * 1000); // 1 hora
+
+        // Invalidar tokens anteriores del mismo usuario
+        await pool.query('UPDATE reset_tokens SET used = TRUE WHERE user_id = $1 AND used = FALSE', [user.id]);
+        await pool.query(
+            'INSERT INTO reset_tokens (user_id, token, expires_at) VALUES ($1, $2, $3)',
+            [user.id, token, expiresAt]
+        );
+
+        const resetLink = `${req.protocol}://${req.get('host')}/reset-password?token=${token}`;
+        await emailService.sendPasswordReset({ to: email, name: user.name, resetLink });
+
+        res.json({ success: true });
+    } catch (err) {
+        console.error('Error forgot-password:', err.message);
+        res.status(500).json({ success: false, message: 'Error del servidor.' });
+    }
+});
+
+// ── POST /api/auth/reset-password ────────────────────────────────
+router.post('/api/auth/reset-password', async (req, res) => {
+    const { token, password } = req.body;
+    if (!token || !password || password.length < 6) {
+        return res.status(400).json({ success: false, message: 'Datos inválidos.' });
+    }
+
+    try {
+        const result = await pool.query(
+            `SELECT rt.id, rt.user_id, rt.expires_at, rt.used
+             FROM reset_tokens rt
+             WHERE rt.token = $1`,
+            [token]
+        );
+
+        if (result.rows.length === 0) {
+            return res.json({ success: false, message: 'Enlace inválido o expirado.' });
+        }
+
+        const resetToken = result.rows[0];
+        if (resetToken.used) return res.json({ success: false, message: 'Este enlace ya ha sido utilizado.' });
+        if (new Date() > new Date(resetToken.expires_at)) {
+            return res.json({ success: false, message: 'El enlace ha expirado. Solicita uno nuevo.' });
+        }
+
+        const hash = await bcrypt.hash(password, SALT_ROUNDS);
+        await pool.query('UPDATE users SET password_hash = $1 WHERE id = $2', [hash, resetToken.user_id]);
+        await pool.query('UPDATE reset_tokens SET used = TRUE WHERE id = $1', [resetToken.id]);
+
+        res.json({ success: true });
+    } catch (err) {
+        console.error('Error reset-password:', err.message);
+        res.status(500).json({ success: false, message: 'Error del servidor.' });
+    }
+});
+
+// ── GET /api/auth/validate-reset-token ──────────────────────────
+router.get('/api/auth/validate-reset-token', async (req, res) => {
+    const { token } = req.query;
+    if (!token) return res.json({ valid: false });
+
+    try {
+        const result = await pool.query(
+            'SELECT id, used, expires_at FROM reset_tokens WHERE token = $1',
+            [token]
+        );
+        if (result.rows.length === 0) return res.json({ valid: false });
+        const t = result.rows[0];
+        const valid = !t.used && new Date() <= new Date(t.expires_at);
+        res.json({ valid });
+    } catch (err) {
+        res.json({ valid: false });
     }
 });
 

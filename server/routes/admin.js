@@ -53,4 +53,28 @@ router.post('/api/admin/cancel-order', requireAuth('admin'), async (req, res) =>
     }
 });
 
+// ── GET /api/admin/kpis ──────────────────────────────────────────
+router.get('/api/admin/kpis', requireAuth('admin'), async (req, res) => {
+    try {
+        const [totalProducers, pendingProducers, totalClients, ordersToday, totalRevenue] = await Promise.all([
+            pool.query("SELECT COUNT(*) FROM users WHERE role = 'PRODUCER'"),
+            pool.query("SELECT COUNT(*) FROM users WHERE role = 'PRODUCER' AND status = 'UNVERIFIED' AND is_blocked = FALSE"),
+            pool.query("SELECT COUNT(*) FROM users WHERE role = 'CLIENT'"),
+            pool.query("SELECT COUNT(*) FROM orders WHERE DATE(created_at) = CURRENT_DATE AND status != 'CANCELLED'"),
+            pool.query("SELECT COALESCE(SUM(total_price), 0) AS total FROM orders WHERE status = 'COMPLETED'")
+        ]);
+        res.json({
+            success: true,
+            totalProducers: parseInt(totalProducers.rows[0].count),
+            pendingProducers: parseInt(pendingProducers.rows[0].count),
+            totalClients: parseInt(totalClients.rows[0].count),
+            ordersToday: parseInt(ordersToday.rows[0].count),
+            totalRevenue: parseFloat(totalRevenue.rows[0].total)
+        });
+    } catch (err) {
+        console.error('Error admin/kpis:', err.message);
+        res.status(500).json({ success: false });
+    }
+});
+
 module.exports = router;

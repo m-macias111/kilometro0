@@ -53,12 +53,17 @@ router.post('/api/producers/update-profile', async (req, res) => {
     const user = getSessionUser(req);
     if (!user || user.role !== 'productor') return res.status(403).json({ success: false });
 
-    const { profileImage, history } = req.body;
+    const { profileImage, history, locality } = req.body;
     try {
         await pool.query(
-            'UPDATE users SET profile_image = COALESCE($1, profile_image), history = COALESCE($2, history) WHERE email = $3 AND role = \'PRODUCER\'',
+            `UPDATE users
+             SET profile_image = COALESCE($1, profile_image),
+                 history = COALESCE($2, history),
+                 locality = COALESCE($3, locality)
+             WHERE email = $4 AND role = 'PRODUCER'`,
             [profileImage !== undefined ? profileImage : null,
              history !== undefined ? history : null,
+             locality !== undefined ? locality : null,
              user.email]
         );
         res.json({ success: true });
@@ -68,22 +73,43 @@ router.post('/api/producers/update-profile', async (req, res) => {
     }
 });
 
+// ── POST /api/producers/update-location ─────────────────────────
+router.post('/api/producers/update-location', async (req, res) => {
+    const user = getSessionUser(req);
+    if (!user || user.role !== 'productor') return res.status(403).json({ success: false });
+
+    const { lat, lng } = req.body;
+    if (lat === undefined || lng === undefined) return res.status(400).json({ success: false });
+
+    try {
+        await pool.query(
+            `UPDATE users SET location = ST_SetSRID(ST_MakePoint($1, $2), 4326) WHERE email = $3 AND role = 'PRODUCER'`,
+            [parseFloat(lng), parseFloat(lat), user.email]
+        );
+        res.json({ success: true });
+    } catch (err) {
+        console.error('Error update-location:', err.message);
+        res.status(500).json({ success: false });
+    }
+});
+
 // ── POST /api/products/add ────────────────────────────────────────
 router.post('/api/products/add', async (req, res) => {
     const user = getSessionUser(req);
     if (!user || user.role !== 'productor') return res.status(403).json({ success: false });
 
-    const { name, category, price, kg, pickup_day, image_url } = req.body;
+    const { name, category, price, kg, pickup_day, image_url, stock } = req.body;
     if (!name || !price) return res.status(400).json({ success: false, message: 'Nombre y precio obligatorios' });
 
     try {
         const result = await pool.query(
-            `INSERT INTO products (producer_id, name, category, price, kg, pickup_day, image_url)
-             SELECT id, $1, $2, $3, $4, $5, $6 FROM users WHERE email = $7 AND role = 'PRODUCER'
+            `INSERT INTO products (producer_id, name, category, price, kg, pickup_day, image_url, stock)
+             SELECT id, $1, $2, $3, $4, $5, $6, $7 FROM users WHERE email = $8 AND role = 'PRODUCER'
              RETURNING *`,
             [name, category || 'Otros', parseFloat(price),
              parseFloat(kg) || 1.0, pickup_day || 'Consultar',
              image_url || 'https://images.unsplash.com/photo-1488459716781-31db52582fe9?w=800',
+             stock != null && stock !== '' ? parseInt(stock) : null,
              user.email]
         );
         if (result.rowCount === 0) return res.status(404).json({ success: false });
@@ -109,6 +135,24 @@ router.delete('/api/products/:id', async (req, res) => {
         res.json({ success: true });
     } catch (err) {
         console.error('Error delete product:', err.message);
+        res.status(500).json({ success: false });
+    }
+});
+
+// ── POST /api/client/update-profile ─────────────────────────────
+router.post('/api/client/update-profile', async (req, res) => {
+    const user = getSessionUser(req);
+    if (!user || user.role !== 'cliente') return res.status(403).json({ success: false });
+
+    const { profileImage } = req.body;
+    try {
+        await pool.query(
+            'UPDATE users SET profile_image = $1 WHERE id = $2 AND role = \'CLIENT\'',
+            [profileImage || null, user.id]
+        );
+        res.json({ success: true });
+    } catch (err) {
+        console.error('Error client update-profile:', err.message);
         res.status(500).json({ success: false });
     }
 });
@@ -160,6 +204,85 @@ router.post('/api/favorites/toggle', async (req, res) => {
     } catch (err) {
         console.error('Error favorites/toggle:', err.message);
         res.status(500).json({ success: false });
+    }
+});
+
+// ── PATCH /api/products/:id/stock ────────────────────────────────
+router.patch('/api/products/:id/stock', async (req, res) => {
+    const user = getSessionUser(req);
+    if (!user || user.role !== 'productor') return res.status(403).json({ success: false });
+
+    const { stock } = req.body;
+    const stockVal = (stock != null && stock !== '') ? parseInt(stock) : null;
+
+    try {
+        const result = await pool.query(
+            `UPDATE products SET stock = $1
+             WHERE id = $2 AND producer_id = (SELECT id FROM users WHERE email = $3 AND role = 'PRODUCER')
+             RETURNING id`,
+            [stockVal, parseInt(req.params.id), user.email]
+        );
+        if (result.rowCount === 0) return res.status(404).json({ success: false });
+        res.json({ success: true });
+    } catch (err) {
+        console.error('Error update stock:', err.message);
+        res.status(500).json({ success: false });
+    }
+});
+
+// ── POST /api/reviews ─────────────────────────────────────────────
+router.post('/api/reviews', async (req, res) => {
+    const user = getSessionUser(req);
+    if (!user || user.role !== 'cliente') return res.status(403).json({ success: false, message: 'Solo clientes pueden dejar reseñas.' });
+
+    const { producer_id, rating, comment } = req.body;
+    if (!producer_id || !rating || rating < 1 || rating > 5) {
+        return res.status(400).json({ success: false, message: 'Datos inválidos.' });
+    }
+
+    try {
+        // Verificar que el cliente tiene al menos un pedido completado con este productor
+        const check = await pool.query(
+            `SELECT 1 FROM orders o
+             JOIN order_items oi ON oi.order_id = o.id
+             JOIN products p ON p.id = oi.product_id
+             WHERE o.client_id = $1 AND p.producer_id = $2 AND o.status = 'COMPLETED'
+             LIMIT 1`,
+            [user.id, parseInt(producer_id)]
+        );
+        if (check.rows.length === 0) {
+            return res.json({ success: false, message: 'Solo puedes valorar productores de los que hayas recogido un pedido.' });
+        }
+
+        await pool.query(
+            `INSERT INTO reviews (producer_id, client_id, client_name, rating, comment)
+             VALUES ($1, $2, $3, $4, $5)
+             ON CONFLICT (producer_id, client_id)
+             DO UPDATE SET rating = $4, comment = $5, created_at = CURRENT_TIMESTAMP`,
+            [parseInt(producer_id), user.id, user.name, parseInt(rating), comment || null]
+        );
+        res.json({ success: true });
+    } catch (err) {
+        console.error('Error post review:', err.message);
+        res.status(500).json({ success: false });
+    }
+});
+
+// ── GET /api/reviews/:producer_id ────────────────────────────────
+router.get('/api/reviews/:producer_id', async (req, res) => {
+    try {
+        const result = await pool.query(
+            `SELECT rating, comment, client_name, created_at
+             FROM reviews WHERE producer_id = $1
+             ORDER BY created_at DESC`,
+            [parseInt(req.params.producer_id)]
+        );
+        const rows = result.rows;
+        const avg = rows.length ? (rows.reduce((s, r) => s + r.rating, 0) / rows.length) : null;
+        res.json({ success: true, reviews: rows, avgRating: avg ? avg.toFixed(1) : null, count: rows.length });
+    } catch (err) {
+        console.error('Error get reviews:', err.message);
+        res.status(500).json({ success: false, reviews: [], avgRating: null, count: 0 });
     }
 });
 

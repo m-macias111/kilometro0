@@ -71,8 +71,37 @@ CREATE TABLE IF NOT EXISTS favorites (
     PRIMARY KEY (client_id, product_id)
 );
 
+-- Columnas adicionales (idempotentes con ALTER TABLE IF NOT EXISTS column)
+ALTER TABLE products ADD COLUMN IF NOT EXISTS stock INT DEFAULT NULL;
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS qr_payload TEXT;
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS rejection_reason VARCHAR(500);
+
+-- Tokens para recuperación de contraseña
+CREATE TABLE IF NOT EXISTS reset_tokens (
+    id         SERIAL PRIMARY KEY,
+    user_id    INT REFERENCES users(id) ON DELETE CASCADE,
+    token      VARCHAR(255) UNIQUE NOT NULL,
+    expires_at TIMESTAMP NOT NULL,
+    used       BOOLEAN DEFAULT FALSE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Reseñas de productores
+CREATE TABLE IF NOT EXISTS reviews (
+    id          SERIAL PRIMARY KEY,
+    producer_id INT REFERENCES users(id) ON DELETE CASCADE,
+    client_id   INT REFERENCES users(id) ON DELETE SET NULL,
+    client_name VARCHAR(255),
+    rating      INT NOT NULL CHECK (rating BETWEEN 1 AND 5),
+    comment     TEXT,
+    created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE (producer_id, client_id)
+);
+
 -- Índices
 CREATE INDEX IF NOT EXISTS idx_users_location ON users USING GIST (location);
 CREATE INDEX IF NOT EXISTS idx_products_producer ON products (producer_id);
 CREATE INDEX IF NOT EXISTS idx_orders_client ON orders (client_id);
 CREATE INDEX IF NOT EXISTS idx_orders_qr ON orders (qr_code);
+CREATE INDEX IF NOT EXISTS idx_reviews_producer ON reviews (producer_id);
+CREATE INDEX IF NOT EXISTS idx_reset_tokens_token ON reset_tokens (token);

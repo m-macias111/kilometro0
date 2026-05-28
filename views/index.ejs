@@ -76,7 +76,7 @@
                     <div style="display:flex; align-items:center; gap:15px;">
                         <button class="btn" id="locationBtn" onclick="getUserLocation()" style="white-space:nowrap; background:rgba(255,255,255,0.2); color:white; border:1px solid rgba(255,255,255,0.4); padding:0.4rem 0.8rem; border-radius:8px; font-weight:600; font-size:0.85rem;"><i class="fa-solid fa-location-crosshairs"></i> Mi Ubicación</button>
                         <label for="distanceFilter" style="white-space:nowrap; font-weight:bold; font-size:0.85rem; color:white;">Radio: <span id="distanceValue">200</span> km</label>
-                        <input type="range" id="distanceFilter" min="1" max="200" step="1" value="200" style="flex:1; accent-color:#8fff8f;" oninput="document.getElementById('distanceValue').innerText=this.value; applyFilters();">
+                        <input type="range" id="distanceFilter" min="1" max="200" step="1" value="200" style="flex:1; accent-color:#8fff8f;" oninput="document.getElementById('distanceValue').innerText=this.value; updateDistanceCircle(); applyFilters();">
                     </div>
                 </div>
                 
@@ -86,13 +86,9 @@
                         <span id="cartBadge" style="position:absolute; top:-5px; right:-5px; background:#ff6b35; color:white; border-radius:50%; width:20px; height:20px; font-size:0.7rem; display:flex; align-items:center; justify-content:center;">0</span>
                     </button>
                     
-                    <div id="authContainer">
+                    <div id="authContainer" style="display:flex; gap:0.5rem; align-items:center;">
                         <a href="/login" class="btn" style="padding: 0.5rem 1rem; background:white; color:#1a7a3a; font-weight:700; border:none; border-radius:8px;">Entrar</a>
-                    </div>
-                    <div id="dashboardLink" style="display:none;">
-                        <a href="/client-app" class="btn" style="padding: 0.5rem 1rem; background:rgba(255,255,255,0.2); color:white; font-weight:700; border:1px solid rgba(255,255,255,0.4); border-radius:8px; font-size:0.85rem;" title="Mi cuenta">
-                            <i class="fa-solid fa-circle-user"></i>
-                        </a>
+                        <a href="/register" class="btn" style="padding: 0.5rem 1rem; background:rgba(255,255,255,0.2); color:white; font-weight:700; border:1px solid rgba(255,255,255,0.4); border-radius:8px;">Registrarse</a>
                     </div>
                 </div>
             </div>
@@ -119,7 +115,7 @@
 
             <div id="products-view" class="view-panel">
                 <h2 style="margin-bottom: 1rem;">Nuestra Despensa</h2>
-                <div style="display:flex; gap:10px; margin-bottom:2rem; overflow-x:auto; padding-bottom:10px;">
+                <div style="display:flex; gap:10px; margin-bottom:1rem; overflow-x:auto; padding-bottom:5px;">
                     <button class="btn btn-primary" onclick="filterCategory('Todas')">Todas</button>
                     <button class="btn btn-outline" onclick="filterCategory('Verduras')">Verduras</button>
                     <button class="btn btn-outline" onclick="filterCategory('Frutas')">Frutas</button>
@@ -128,6 +124,12 @@
                     <button class="btn btn-outline" onclick="filterCategory('Miel')">Miel</button>
                     <button class="btn btn-outline" onclick="filterCategory('Bebidas')">Bebidas</button>
                     <button class="btn btn-outline" onclick="filterCategory('Otros')">Otros</button>
+                </div>
+                <div style="display:flex; align-items:center; gap:12px; margin-bottom:1.5rem; background:#f9f9f9; padding:10px 14px; border-radius:10px; flex-wrap:wrap;">
+                    <span style="font-weight:700; font-size:0.85rem; white-space:nowrap; color:#555;"><i class="fa-solid fa-tag"></i> Precio:</span>
+                    <span style="font-size:0.85rem; color:#555;">0€</span>
+                    <input type="range" id="priceFilter" min="0" max="200" step="1" value="200" style="flex:1; min-width:100px; accent-color:#1a7a3a;" oninput="document.getElementById('priceValue').innerText=this.value; applyFilters();">
+                    <span style="font-size:0.85rem; color:#555; white-space:nowrap;">Hasta <b id="priceValue">200</b>€</span>
                 </div>
                 <div class="products-grid" id="productsGrid"></div>
             </div>
@@ -145,7 +147,25 @@
         </div>
         <div class="cart-footer" id="cartFooter">
             <h3 style="display: flex; justify-content: space-between; margin-bottom: 1rem;">Total: <span id="cartTotal">0.00€</span></h3>
-            <button class="btn btn-primary" style="width: 100%;" onclick="checkout()">Tramitar Reserva</button>
+            <button class="btn btn-primary" style="width: 100%;" onclick="showCheckoutConfirm()">Tramitar Reserva</button>
+        </div>
+    </div>
+
+    <!-- Confirmation Modal -->
+    <div id="confirmModal" style="position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); z-index:4000; display:none; justify-content:center; align-items:center; backdrop-filter:blur(3px);">
+        <div style="background:white; padding:2rem; border-radius:16px; width:100%; max-width:460px; box-shadow:0 20px 60px rgba(0,0,0,0.2); max-height:90vh; overflow-y:auto;">
+            <h2 style="margin-bottom:0.5rem;"><i class="fa-solid fa-clipboard-check" style="color:var(--primary);"></i> Confirmar Reserva</h2>
+            <p style="color:gray; font-size:0.9rem; margin-bottom:1.5rem;">Revisa tu pedido antes de confirmar.</p>
+            <div id="confirmItems"></div>
+            <div style="background:#f0fff0; border-radius:10px; padding:1rem; margin-top:1rem;">
+                <div style="display:flex; justify-content:space-between; font-size:1.1rem; font-weight:800; color:var(--primary);">
+                    <span>Total</span><span id="confirmTotal"></span>
+                </div>
+            </div>
+            <div style="display:flex; gap:0.75rem; margin-top:1.5rem;">
+                <button class="btn btn-outline" style="flex:1;" onclick="closeConfirmModal()"><i class="fa-solid fa-arrow-left"></i> Volver</button>
+                <button class="btn btn-primary" style="flex:2;" id="confirmBtn" onclick="checkout()"><i class="fa-solid fa-paper-plane"></i> Confirmar y Tramitar</button>
+            </div>
         </div>
     </div>
 
@@ -166,23 +186,22 @@
 
         if(userStr) {
             currentUser = JSON.parse(userStr);
+            const dashboardUrl = currentUser.role === 'admin' ? '/admin-app' : currentUser.role === 'productor' ? '/producer-app' : '/client-app';
+            const icon = currentUser.role === 'productor' ? 'fa-tractor' : currentUser.role === 'admin' ? 'fa-shield-halved' : 'fa-circle-user';
             document.getElementById('authContainer').innerHTML = `
-                <div style="font-weight:600; color:white; cursor:pointer;" onclick="logout()">
-                    <i class="fa-solid fa-circle-user" style="color:#8fff8f; font-size:1.2rem; margin-right:5px;"></i> ${currentUser.name}
-                    <span style="font-size:0.8rem; color:rgba(255,255,255,0.7); display:block;">Cerrar sesión</span>
-                </div>`;
-            // Mostrar enlace al dashboard según rol
+                <a href="${dashboardUrl}" style="display:flex; align-items:center; gap:0.6rem; cursor:pointer; padding:0.4rem 0.8rem; border-radius:30px; background:rgba(255,255,255,0.15); text-decoration:none; transition:0.2s;" onmouseover="this.style.background='rgba(255,255,255,0.25)'" onmouseout="this.style.background='rgba(255,255,255,0.15)'">
+                    <div style="width:30px; height:30px; border-radius:50%; background:rgba(255,255,255,0.2); display:flex; align-items:center; justify-content:center; flex-shrink:0;">
+                        <i class="fa-solid ${icon}" style="font-size:0.8rem; color:white;"></i>
+                    </div>
+                    <span style="font-weight:600; color:white; font-size:0.9rem;">${currentUser.name}</span>
+                </a>
+                <button onclick="logout()" style="background:#e74c3c; color:white; border:none; padding:0.5rem 1rem; border-radius:8px; font-weight:700; cursor:pointer; font-family:inherit; font-size:0.9rem; display:flex; align-items:center; gap:6px; transition:0.2s;" onmouseover="this.style.background='#c0392b'" onmouseout="this.style.background='#e74c3c'">
+                    <i class="fa-solid fa-right-from-bracket"></i> Cerrar Sesión
+                </button>`;
             if(currentUser.role === 'cliente') {
-                document.getElementById('dashboardLink').style.display = 'block';
-                // Cargar favoritos del usuario
                 fetch('/api/favorites').then(r => r.json()).then(data => {
-                    if(data.favorites) {
-                        data.favorites.forEach(f => userFavorites.add(f.id));
-                    }
+                    if(data.favorites) data.favorites.forEach(f => userFavorites.add(f.id));
                 });
-            } else if(currentUser.role === 'productor') {
-                document.getElementById('dashboardLink').innerHTML = `<a href="/producer-app" class="btn" style="padding: 0.5rem 1rem; background:rgba(255,255,255,0.2); color:white; font-weight:700; border:1px solid rgba(255,255,255,0.4); border-radius:8px; font-size:0.85rem;"><i class="fa-solid fa-tractor"></i></a>`;
-                document.getElementById('dashboardLink').style.display = 'block';
             }
         }
         function logout() {
@@ -247,7 +266,8 @@
             switchView(hash, navEl);
         });
 
-        // === CART (Persistent) ===
+        // === CART (Persistent, with quantities) ===
+        // cart is [{...productData, qty: N}, ...]
         let cart = JSON.parse(localStorage.getItem('km0_cart')) || [];
         const sidebar = document.getElementById('cartSidebar');
         const backdrop = document.querySelector('.cart-backdrop');
@@ -256,36 +276,84 @@
 
         function addToCart(id) {
             const product = productsData.find(p => p.id === id);
-            cart.push(product);
+            if (!product) return;
+            const existing = cart.find(c => c.id === id);
+            if (existing) {
+                existing.qty = (existing.qty || 1) + 1;
+            } else {
+                cart.push({ ...product, qty: 1 });
+            }
             localStorage.setItem('km0_cart', JSON.stringify(cart));
             updateCartUI();
             showToast('Producto añadido a la cesta');
         }
 
+        function changeQty(id, delta) {
+            const item = cart.find(c => c.id === id);
+            if (!item) return;
+            item.qty = (item.qty || 1) + delta;
+            if (item.qty <= 0) cart = cart.filter(c => c.id !== id);
+            localStorage.setItem('km0_cart', JSON.stringify(cart));
+            updateCartUI();
+        }
+
         function updateCartUI() {
-            document.getElementById('cartBadge').innerText = cart.length;
+            const totalItems = cart.reduce((s, p) => s + (p.qty || 1), 0);
+            document.getElementById('cartBadge').innerText = totalItems;
             const body = document.getElementById('cartItems');
-            if(cart.length === 0) {
+            if (cart.length === 0) {
                 body.innerHTML = '<p style="color:gray;">Tu cesta está vacía.</p>';
                 document.getElementById('cartFooter').style.display = '';
             } else {
                 let html = '', total = 0;
                 cart.forEach(p => {
-                    total += p.price;
-                    html += `<div class="cart-item"><div><h4 style="margin:0;">${p.name}</h4><span style="font-size:0.8rem; color:gray;">${p.producer_name}</span></div><div style="font-weight:bold; color:var(--primary);">${p.price.toFixed(2)}€</div></div>`;
+                    const qty = p.qty || 1;
+                    const lineTotal = p.price * qty;
+                    total += lineTotal;
+                    html += `<div class="cart-item">
+                        <div style="flex:1;">
+                            <h4 style="margin:0 0 2px;">${p.name}</h4>
+                            <span style="font-size:0.8rem; color:gray;">${p.producer_name}</span>
+                        </div>
+                        <div style="display:flex; align-items:center; gap:6px;">
+                            <button onclick="changeQty(${p.id},-1)" style="background:#eee; border:none; border-radius:4px; width:24px; height:24px; cursor:pointer; font-size:1rem; display:flex; align-items:center; justify-content:center;">−</button>
+                            <span style="font-weight:700; min-width:16px; text-align:center;">${qty}</span>
+                            <button onclick="changeQty(${p.id},1)" style="background:#eee; border:none; border-radius:4px; width:24px; height:24px; cursor:pointer; font-size:1rem; display:flex; align-items:center; justify-content:center;">+</button>
+                        </div>
+                        <div style="font-weight:bold; color:var(--primary); margin-left:10px; min-width:54px; text-align:right;">${lineTotal.toFixed(2)}€</div>
+                    </div>`;
                 });
                 body.innerHTML = html;
                 document.getElementById('cartTotal').innerText = total.toFixed(2) + '€';
             }
         }
 
+        function showCheckoutConfirm() {
+            if (cart.length === 0) return showToast('La cesta está vacía', true);
+            const total = cart.reduce((s, p) => s + p.price * (p.qty || 1), 0);
+            const itemsHtml = cart.map(p => {
+                const qty = p.qty || 1;
+                return `<div style="display:flex; justify-content:space-between; padding:0.5rem 0; border-bottom:1px dashed #eee; font-size:0.88rem;">
+                    <span><b>${p.name}</b> <span style="color:gray;">× ${qty}</span> <span style="color:#999; font-size:0.78rem;">· ${p.producer_name}</span></span>
+                    <span style="font-weight:700; color:var(--primary);">${(p.price * qty).toFixed(2)}€</span>
+                </div>`;
+            }).join('');
+            document.getElementById('confirmItems').innerHTML = itemsHtml;
+            document.getElementById('confirmTotal').innerText = total.toFixed(2) + '€';
+            document.getElementById('confirmModal').style.display = 'flex';
+        }
+
+        function closeConfirmModal() {
+            document.getElementById('confirmModal').style.display = 'none';
+        }
+
         function checkout() {
-            if(cart.length === 0) return showToast('La cesta está vacía', true);
+            closeConfirmModal();
+            if (cart.length === 0) return showToast('La cesta está vacía', true);
             const u = localStorage.getItem('km0_user');
-            if(u) {
+            if (u) {
                 processOrder(JSON.parse(u).email);
             } else {
-                // Show guest/register options
                 document.getElementById('cartItems').innerHTML = `
                     <div style="padding:1rem 0;">
                         <h3 style="margin-bottom:1rem;">¿Cómo quieres continuar?</h3>
@@ -304,7 +372,7 @@
         function submitGuestOrder() {
             const email = document.getElementById('guestEmail').value;
             const emailConfirm = document.getElementById('guestEmailConfirm').value;
-            if(!email || email !== emailConfirm || !/^[^@]+@[^@]+\.[a-zA-Z]{2,}$/.test(email)) {
+            if (!email || email !== emailConfirm || !/^[^@]+@[^@]+\.[a-zA-Z]{2,}$/.test(email)) {
                 document.getElementById('guestEmailError').style.display = 'block';
                 return;
             }
@@ -317,38 +385,82 @@
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ items: cart, client_email })
             }).then(r => r.json()).then(data => {
-                const pickupInfo = [...new Set(cart.map(p => `<li><b>${p.producer_name}</b> — ${p.lat ? p.lat.toFixed(4)+', '+p.lng.toFixed(4) : ''}</li>`))].join('');
-                const emailNote = data.emailPreviewUrl 
+                const qrPayload = data.qr_payload;
+                const total = cart.reduce((s, p) => s + p.price * (p.qty || 1), 0);
+                const itemsHtml = cart.map(p => {
+                    const qty = p.qty || 1;
+                    return `<div style="display:flex; justify-content:space-between; padding:0.4rem 0; border-bottom:1px dashed #eee; font-size:0.85rem;">
+                        <span><b>${p.name}</b> × ${qty} <span style="color:gray;">· ${p.producer_name}</span></span>
+                        <span style="font-weight:700; color:var(--primary);">${(p.price * qty).toFixed(2)}€</span>
+                    </div>`;
+                }).join('');
+
+                const emailNote = data.emailPreviewUrl
                     ? `<div style="background:#fff3cd; padding:12px; border-radius:8px; margin-top:1rem; border:1px solid #ffc107;">
-                        <p style="margin:0; font-size:0.85rem; color:#856404;"><i class="fa-solid fa-flask"></i> <b>Modo de pruebas:</b> El correo no llega a tu buzón real. Puedes verlo aquí:</p>
-                        <a href="${data.emailPreviewUrl}" target="_blank" style="display:block; text-align:center; margin-top:8px; background:#1a7a3a; color:white; padding:10px; border-radius:8px; text-decoration:none; font-weight:700;"><i class="fa-solid fa-envelope-open-text"></i> Ver Email de Confirmación</a>
+                        <p style="margin:0; font-size:0.85rem; color:#856404;"><i class="fa-solid fa-flask"></i> <b>Modo de pruebas:</b> <a href="${data.emailPreviewUrl}" target="_blank" style="color:#856404; font-weight:700;">Ver email de confirmación</a></p>
                        </div>`
-                    : `<p style="margin-top:1rem; font-size:0.85rem; color:gray;"><i class="fa-solid fa-check-circle" style="color:var(--primary);"></i> Email enviado correctamente a <b>${client_email}</b></p>`;
+                    : `<p style="margin-top:1rem; font-size:0.85rem; color:gray;"><i class="fa-solid fa-check-circle" style="color:var(--primary);"></i> Email enviado a <b>${client_email}</b></p>`;
+
                 document.getElementById('cartItems').innerHTML = `
-                    <div style="text-align:center; padding:2rem 0;">
-                        <i class="fa-solid fa-circle-check" style="font-size:4rem; color:var(--primary); margin-bottom:1rem;"></i>
-                        <h2>¡Reserva Confirmada!</h2>
-                        <p style="color:gray; font-size:0.9rem;">Correo de confirmación para <b>${client_email}</b></p>
-                        <div id="qrcode-container" style="display:flex; justify-content:center; margin:1.5rem 0; padding:10px; background:white; border-radius:12px; box-shadow:0 5px 15px rgba(0,0,0,0.05);"></div>
-                        <p style="color:gray; font-size:0.9rem;">Referencia: ${data.qr_code}</p>
-                        <div style="text-align:left; background:#f9f9f9; padding:1rem; border-radius:8px; margin-top:1rem;">
-                            <h4 style="margin:0 0 0.5rem;"><i class="fa-solid fa-location-dot" style="color:var(--primary);"></i> Puntos de recogida:</h4>
-                            <ul style="margin:0; padding-left:1.2rem; font-size:0.9rem; color:#555;">${pickupInfo}</ul>
+                    <div style="padding:1.5rem 0;">
+                        <div style="text-align:center; margin-bottom:1.5rem;">
+                            <i class="fa-solid fa-circle-check" style="font-size:3rem; color:var(--primary); margin-bottom:0.5rem;"></i>
+                            <h2 style="margin:0.3rem 0;">¡Reserva Confirmada!</h2>
+                        </div>
+                        <div style="display:flex; justify-content:center; margin:1rem 0;"><div id="qrcode-container" style="padding:12px; background:white; border-radius:12px; box-shadow:0 5px 15px rgba(0,0,0,0.05); display:inline-block;"></div></div>
+                        <div style="background:#f9f9f9; border-radius:10px; padding:1rem; font-size:0.85rem; margin-bottom:1rem;">
+                            <div style="display:flex; justify-content:space-between; margin-bottom:0.5rem;">
+                                <span style="color:gray;"><i class="fa-solid fa-hashtag"></i> Referencia</span>
+                                <span style="font-weight:700; font-family:monospace;">${data.qr_code}</span>
+                            </div>
+                            <div style="display:flex; justify-content:space-between; margin-bottom:0.8rem;">
+                                <span style="color:gray;"><i class="fa-solid fa-user"></i> Cliente</span>
+                                <span style="font-weight:600;">${client_email}</span>
+                            </div>
+                            <div style="border-top:1px solid #eee; padding-top:0.8rem;">
+                                <p style="margin:0 0 0.5rem; font-weight:600; color:#333;"><i class="fa-solid fa-boxes-stacked" style="color:var(--primary);"></i> Artículos</p>
+                                ${itemsHtml}
+                                <div style="display:flex; justify-content:space-between; padding-top:0.6rem; font-size:0.95rem;">
+                                    <span style="font-weight:700;">Total</span>
+                                    <span style="font-weight:800; color:var(--primary);">${total.toFixed(2)}€</span>
+                                </div>
+                            </div>
                         </div>
                         ${emailNote}
                     </div>`;
-                new QRCode(document.getElementById("qrcode-container"), { text: data.qr_code, width: 180, height: 180, colorDark: "#27ae60", colorLight: "#ffffff", correctLevel: QRCode.CorrectLevel.M });
+                if (qrPayload) {
+                    new QRCode(document.getElementById("qrcode-container"), { text: qrPayload, width: 160, height: 160, colorDark: "#1a7a3a", colorLight: "#ffffff", correctLevel: QRCode.CorrectLevel.M });
+                }
                 document.getElementById('cartFooter').style.display = 'none';
                 cart = [];
                 localStorage.removeItem('km0_cart');
                 document.getElementById('cartBadge').innerText = '0';
+            }).catch(err => {
+                showToast('Error al tramitar el pedido: ' + err.message, true);
             });
         }
 
         // === MAP & GEOLOCATION ===
-        let userLat = 40.4168, userLng = -3.7038, hasUserLocation = false, userMarker = null;
+        let userLat = 40.4168, userLng = -3.7038, hasUserLocation = false, userMarker = null, distanceCircle = null;
         const map = L.map('map').setView([userLat, userLng], 6);
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map);
+
+        function updateDistanceCircle() {
+            if (!hasUserLocation) return;
+            const km = parseInt(document.getElementById('distanceFilter').value);
+            if (distanceCircle) {
+                distanceCircle.setLatLng([userLat, userLng]).setRadius(km * 1000);
+            } else {
+                distanceCircle = L.circle([userLat, userLng], {
+                    radius: km * 1000,
+                    color: '#1a7a3a',
+                    fillColor: '#2ecc71',
+                    fillOpacity: 0.08,
+                    weight: 2,
+                    dashArray: '6 4'
+                }).addTo(map);
+            }
+        }
 
         // Custom green marker icon
         const greenIcon = L.icon({
@@ -373,6 +485,7 @@
                     })
                 }).addTo(map).bindPopup('<b>Tu ubicación actual</b>').openPopup();
                 document.getElementById('locationBtn').style.background = 'rgba(255,255,255,0.35)';
+                updateDistanceCircle();
                 applyFilters();
             }, () => showToast('No se pudo obtener la ubicación.', true));
         }
@@ -390,6 +503,7 @@
             markers.length = 0;
             filteredProducers.forEach(p => {
                 if(!p.verified) return;
+                if(!p.lat || !p.lng || isNaN(p.lat) || isNaN(p.lng)) return;
                 const prods = productsData.filter(pr => pr.producer_id === p.id).slice(0, 2);
                 const prodsHtml = prods.map(pr => `<div style="display:flex;align-items:center;gap:6px;margin-top:4px;"><img src="${pr.image_url}" style="width:32px;height:32px;border-radius:4px;object-fit:cover;"><span style="font-size:0.75rem;">${pr.name.substring(0,22)} <b>${pr.price.toFixed(2)}€</b></span></div>`).join('');
                 const img = p.profileImage ? `<img src="${p.profileImage}" style="width:100%;height:80px;object-fit:cover;border-radius:6px;margin-bottom:6px;">` : '';
@@ -402,16 +516,23 @@
         // === PRODUCTS GRID ===
         function renderProductsGrid(products) {
             const grid = document.getElementById('productsGrid');
-            if(products.length === 0) {
+            if (products.length === 0) {
                 grid.innerHTML = '<p style="color:gray; grid-column:1/-1; text-align:center; padding:3rem;">No se encontraron productos con estos filtros.</p>';
                 return;
             }
             grid.innerHTML = products.map(p => {
                 const isFav = userFavorites.has(p.id);
+                const outOfStock = p.stock !== null && p.stock !== undefined && p.stock <= 0;
+                const stockBadge = p.stock !== null && p.stock !== undefined
+                    ? (outOfStock
+                        ? `<span style="position:absolute; top:50px; left:12px; background:#e74c3c; color:white; padding:3px 8px; border-radius:6px; font-size:0.72rem; font-weight:700;">AGOTADO</span>`
+                        : (p.stock <= 5 ? `<span style="position:absolute; top:50px; left:12px; background:#f39c12; color:white; padding:3px 8px; border-radius:6px; font-size:0.72rem; font-weight:700;">Quedan ${p.stock}</span>` : ''))
+                    : '';
                 return `
-                <div class="produce-card">
+                <div class="produce-card" style="${outOfStock ? 'opacity:0.75;' : ''}">
                     <span class="card-badge">${p.category}</span>
                     <span class="card-price">${p.price.toFixed(2)}€</span>
+                    ${stockBadge}
                     <button onclick="toggleFavorite(${p.id}, this)" title="${isFav ? 'Quitar de favoritos' : 'Guardar en favoritos'}"
                         style="position:absolute; top:12px; right:70px; background:rgba(0,0,0,0.5); border:none; border-radius:50%; width:32px; height:32px; cursor:pointer; color:${isFav ? '#e74c3c' : 'rgba(255,255,255,0.8)'}; z-index:10; display:flex; align-items:center; justify-content:center;">
                         <i class="fa-${isFav ? 'solid' : 'regular'} fa-heart"></i>
@@ -423,7 +544,10 @@
                         <div class="pickup-tag"><i class="fa-solid fa-calendar-check"></i> Recogida: ${p.pickup_day}</div>
                         <div style="display:flex; justify-content:space-between; align-items:center;">
                             <span style="font-weight:bold; font-size:1.2rem; color:var(--primary);">${p.kg}kg</span>
-                            <button onclick="addToCart(${p.id})" class="btn btn-primary" style="padding:0.5rem 1.2rem; font-weight:700;"><i class="fa-solid fa-basket-shopping"></i> Comprar</button>
+                            ${outOfStock
+                                ? `<button class="btn btn-outline" style="padding:0.5rem 1.2rem; font-weight:700; opacity:0.5; cursor:not-allowed;" disabled><i class="fa-solid fa-ban"></i> Agotado</button>`
+                                : `<button onclick="addToCart(${p.id})" class="btn btn-primary" style="padding:0.5rem 1.2rem; font-weight:700;"><i class="fa-solid fa-basket-shopping"></i> Comprar</button>`
+                            }
                         </div>
                     </div>
                 </div>`;
@@ -447,31 +571,33 @@
             const maxDistance = parseInt(document.getElementById('distanceFilter').value);
             const mapCategory = document.getElementById('mapCategoryFilter').value;
             const mapSearch = document.getElementById('mapSearch').value.toLowerCase();
+            const maxPrice = parseInt(document.getElementById('priceFilter').value);
 
             // Filter producers by distance
             let filteredProducers = producersData;
-            if(hasUserLocation) {
+            if (hasUserLocation) {
                 filteredProducers = filteredProducers.filter(p => getDistance(userLat, userLng, p.lat, p.lng) <= maxDistance);
             }
 
-            // Filter map producers by category/search (only show producers that have matching products)
-            if(mapCategory !== 'Todas' || mapSearch) {
+            // Filter map producers by category/search
+            if (mapCategory !== 'Todas' || mapSearch) {
                 filteredProducers = filteredProducers.filter(p => {
                     const prods = productsData.filter(pr => pr.producer_id === p.id);
                     let match = prods;
-                    if(mapCategory !== 'Todas') match = match.filter(pr => pr.category === mapCategory);
-                    if(mapSearch) match = match.filter(pr => pr.name.toLowerCase().includes(mapSearch));
+                    if (mapCategory !== 'Todas') match = match.filter(pr => pr.category === mapCategory);
+                    if (mapSearch) match = match.filter(pr => pr.name.toLowerCase().includes(mapSearch));
                     return match.length > 0;
                 });
             }
             renderMarkers(filteredProducers);
 
-            // Filter products grid by producer, category, and text
+            // Filter products grid
             const allProducersInRange = hasUserLocation ? producersData.filter(p => getDistance(userLat, userLng, p.lat, p.lng) <= maxDistance) : producersData;
             const validIds = allProducersInRange.map(p => p.id);
             let filtered = productsData.filter(p => validIds.includes(p.producer_id));
-            if(currentCategory !== 'Todas') filtered = filtered.filter(p => p.category === currentCategory);
-            if(text) filtered = filtered.filter(p => p.name.toLowerCase().includes(text) || p.producer_name.toLowerCase().includes(text));
+            if (currentCategory !== 'Todas') filtered = filtered.filter(p => p.category === currentCategory);
+            if (text) filtered = filtered.filter(p => p.name.toLowerCase().includes(text) || p.producer_name.toLowerCase().includes(text));
+            filtered = filtered.filter(p => p.price <= maxPrice);
             renderProductsGrid(filtered);
         }
 

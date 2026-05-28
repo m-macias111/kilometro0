@@ -7,8 +7,8 @@ const { getSessionUser } = require('../middleware/auth');
 
 async function getProductsWithProducers() {
     const result = await pool.query(
-        `SELECT p.id, p.producer_id, p.name, p.category, p.price, p.kg, p.pickup_day, p.image_url,
-                u.name AS producer_name,
+        `SELECT p.id, p.producer_id, p.name, p.category, p.price, p.kg, p.pickup_day, p.image_url, p.stock,
+                u.id AS producer_db_id, u.name AS producer_name,
                 ST_Y(u.location::geometry) AS lat,
                 ST_X(u.location::geometry) AS lng
          FROM products p
@@ -71,8 +71,18 @@ router.get('/register', (req, res) => {
     res.render('register', { page: 'register', role });
 });
 
+router.get('/forgot-password', (req, res) => {
+    res.render('forgot-password', { page: 'forgot-password' });
+});
+
+router.get('/reset-password', (req, res) => {
+    const token = req.query.token || '';
+    res.render('reset-password', { page: 'reset-password', token });
+});
+
 router.get('/producer-profile', async (req, res) => {
     const id = parseInt(req.query.id) || 0;
+    const from = req.query.from || 'store';
     try {
         const producerResult = await pool.query(
             `SELECT id, name, last_name AS "lastName", locality, phone, history,
@@ -83,7 +93,7 @@ router.get('/producer-profile', async (req, res) => {
         const producer = producerResult.rows[0] || null;
 
         const productsResult = await pool.query(
-            `SELECT p.id, p.producer_id, p.name, p.category, p.price, p.kg, p.pickup_day, p.image_url,
+            `SELECT p.id, p.producer_id, p.name, p.category, p.price, p.kg, p.pickup_day, p.image_url, p.stock,
                     u.name AS producer_name,
                     ST_Y(u.location::geometry) AS lat,
                     ST_X(u.location::geometry) AS lng
@@ -100,10 +110,20 @@ router.get('/producer-profile', async (req, res) => {
             lng: parseFloat(r.lng),
         }));
 
-        res.render('producer-profile', { page: 'producer-profile', producer, products });
+        // Reseñas del productor
+        const reviewsResult = await pool.query(
+            `SELECT rating, comment, client_name, created_at FROM reviews WHERE producer_id = $1 ORDER BY created_at DESC`,
+            [id]
+        );
+        const reviews = reviewsResult.rows;
+        const avgRating = reviews.length
+            ? (reviews.reduce((s, r) => s + r.rating, 0) / reviews.length).toFixed(1)
+            : null;
+
+        res.render('producer-profile', { page: 'producer-profile', producer, products, from, reviews, avgRating });
     } catch (err) {
         console.error('Error producer-profile:', err.message);
-        res.render('producer-profile', { page: 'producer-profile', producer: null, products: [] });
+        res.render('producer-profile', { page: 'producer-profile', producer: null, products: [], from: 'store', reviews: [], avgRating: null });
     }
 });
 
@@ -115,7 +135,8 @@ router.get('/producer-app', async (req, res) => {
     try {
         const producerResult = await pool.query(
             `SELECT id, name, last_name AS "lastName", email, phone, locality, history,
-                    profile_image AS "profileImage", status, dni, cadastral_ref AS "catastral"
+                    profile_image AS "profileImage", status, dni, cadastral_ref AS "catastral",
+                    ST_Y(location::geometry) AS lat, ST_X(location::geometry) AS lng
              FROM users WHERE email = $1 AND role = 'PRODUCER'`,
             [user.email]
         );
@@ -131,7 +152,7 @@ router.get('/producer-app', async (req, res) => {
 
         // Pedidos que incluyen productos de este productor
         const ordersResult = await pool.query(
-            `SELECT DISTINCT o.id AS order_id, o.client_email, o.qr_code, o.status, o.total_price, o.created_at,
+            `SELECT o.id AS order_id, o.client_email, o.qr_code, o.status, o.total_price, o.created_at,
                     json_agg(json_build_object('id', oi.product_id, 'name', oi.product_name, 'price', oi.unit_price)) AS items
              FROM orders o
              JOIN order_items oi ON oi.order_id = o.id
@@ -158,7 +179,8 @@ router.get('/producer-app', async (req, res) => {
             producer,
             products,
             orders,
-            stats: { totalSales, totalRevenue, pendingOrders }
+            stats: { totalSales, totalRevenue, pendingOrders },
+            adminEmail: process.env.ADMIN_CONTACT_EMAIL || process.env.ADMIN_EMAIL || 'admin@km0local.es'
         });
     } catch (err) {
         console.error('Error producer-app:', err.message);
@@ -173,16 +195,16 @@ router.get('/client-app', async (req, res) => {
 
     try {
         const clientResult = await pool.query(
-            'SELECT id, name, last_name AS "lastName", email FROM users WHERE id = $1',
+            'SELECT id, name, last_name AS "lastName", email, profile_image AS "profileImage" FROM users WHERE id = $1',
             [user.id]
         );
         if (clientResult.rows.length === 0) return res.redirect('/login');
         const client = clientResult.rows[0];
 
-        // Pedidos del cliente
+        // Pedidos del cliente (incluye qr_payload para generar QR en cliente)
         const ordersResult = await pool.query(
-            `SELECT o.id AS order_id, o.qr_code, o.status, o.total_price, o.created_at,
-                    json_agg(json_build_object('name', oi.product_name, 'price', oi.unit_price)) AS items
+            `SELECT o.id AS order_id, o.qr_code, o.qr_payload, o.status, o.total_price, o.created_at, o.rejection_reason,
+                    json_agg(json_build_object('name', oi.product_name, 'price', oi.unit_price, 'qty', oi.quantity)) AS items
              FROM orders o
              LEFT JOIN order_items oi ON oi.order_id = o.id
              WHERE o.client_id = $1

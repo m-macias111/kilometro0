@@ -65,7 +65,7 @@ async function seed() {
     try {
         await client.query('BEGIN');
 
-        console.log('🌱 Limpiando tablas...');
+        console.log('Limpiando tablas...');
         await client.query('DELETE FROM favorites');
         await client.query('DELETE FROM order_items');
         await client.query('DELETE FROM orders');
@@ -78,7 +78,7 @@ async function seed() {
         const hash = await bcrypt.hash(TEST_PASSWORD, SALT_ROUNDS);
         const producerIds = [];
 
-        console.log('👨‍🌾 Insertando productores...');
+        console.log('Insertando productores...');
         for (const p of producers) {
             const res = await client.query(
                 `INSERT INTO users (role, name, last_name, email, password_hash, phone, locality, status, is_blocked, dni, cadastral_ref, history, profile_image, location)
@@ -91,7 +91,7 @@ async function seed() {
             producerIds.push(res.rows[0].id);
         }
 
-        console.log('👥 Insertando clientes...');
+        console.log('Insertando clientes...');
         for (const c of clients) {
             await client.query(
                 `INSERT INTO users (role, name, last_name, email, password_hash, status)
@@ -100,7 +100,7 @@ async function seed() {
             );
         }
 
-        console.log('📦 Insertando productos...');
+        console.log('Insertando productos...');
         for (const p of products) {
             await client.query(
                 `INSERT INTO products (producer_id, name, category, price, kg, pickup_day, image_url)
@@ -111,13 +111,13 @@ async function seed() {
 
         await client.query('COMMIT');
         console.log('');
-        console.log('✅ Seed completado:');
+        console.log('Seed completado:');
         console.log('   ' + producers.length + ' productores  |  ' + clients.length + ' clientes  |  ' + products.length + ' productos');
-        console.log('🔑 Contraseña de prueba para todos los usuarios: "' + TEST_PASSWORD + '"');
-        console.log('🔑 Admin: admin@admin / admin  (hardcoded, no está en la DB)');
+        console.log('Contrasena de prueba para todos los usuarios: "' + TEST_PASSWORD + '"');
+        console.log('Admin: admin@admin / admin  (hardcoded, no esta en la DB)');
     } catch (err) {
         await client.query('ROLLBACK');
-        console.error('❌ Error en seed:', err.message);
+        console.error('Error en seed:', err.message);
         throw err;
     } finally {
         client.release();
