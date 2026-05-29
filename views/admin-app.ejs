@@ -23,8 +23,39 @@
         .badge { padding: 0.3rem 0.8rem; border-radius: 20px; font-size: 0.8rem; font-weight: bold; }
         .badge-warning { background: #f39c12; color: white; }
         .badge-success { background: #2ecc71; color: white; }
+        .badge-danger { background: #e74c3c; color: white; }
         .btn-block { background: transparent; border: 2px solid red; color: red; }
         .btn-block:hover { background: red; color: white; }
+
+        /* Search */
+        .search-box { position: relative; margin-bottom: 1.2rem; }
+        .search-box i { position: absolute; left: 0.9rem; top: 50%; transform: translateY(-50%); color: #aaa; }
+        .search-input { width: 100%; padding: 0.6rem 1rem 0.6rem 2.4rem; border: 1px solid #ddd; border-radius: 8px; font-size: 0.9rem; outline: none; font-family: inherit; box-sizing: border-box; transition: border-color 0.2s; }
+        .search-input:focus { border-color: #34495e; }
+        .no-results { color: gray; text-align: center; padding: 2rem; display: none; }
+
+        /* Order items clickable */
+        .order-clickable { cursor: pointer; }
+        .order-clickable:hover { border-color: #34495e; background: #f8f9fa; }
+
+        /* Modals */
+        .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 2000; }
+        .modal-box { background: white; border-radius: 16px; padding: 2rem; max-width: 600px; width: 90%; max-height: 82vh; overflow-y: auto; position: relative; box-shadow: 0 20px 60px rgba(0,0,0,0.3); }
+        .modal-close { position: absolute; top: 1rem; right: 1rem; background: none; border: none; font-size: 1.4rem; cursor: pointer; color: gray; line-height: 1; width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center; }
+        .modal-close:hover { background: #f0f0f0; }
+        .modal-section { margin-bottom: 1.2rem; }
+        .modal-section h4 { font-size: 0.85rem; text-transform: uppercase; color: #aaa; letter-spacing: 0.5px; margin-bottom: 0.6rem; }
+        .items-table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+        .items-table th { text-align: left; color: #aaa; font-size: 0.8rem; text-transform: uppercase; padding: 0.4rem 0.6rem; border-bottom: 1px solid #eee; }
+        .items-table td { padding: 0.5rem 0.6rem; border-bottom: 1px solid #f5f5f5; }
+        .status-pill { padding: 0.25rem 0.75rem; border-radius: 20px; font-size: 0.8rem; font-weight: bold; display: inline-block; }
+        .status-PENDING { background: #fef3cd; color: #856404; }
+        .status-COMPLETED { background: #d1f2e1; color: #1a7a3a; }
+        .status-CANCELLED { background: #fde8e8; color: #c0392b; }
+        .client-avatar { width: 64px; height: 64px; border-radius: 50%; object-fit: cover; border: 3px solid #eee; }
+        .client-avatar-placeholder { width: 64px; height: 64px; border-radius: 50%; background: #34495e; display: flex; align-items: center; justify-content: center; color: white; font-size: 1.5rem; font-weight: bold; }
+        .mini-order-row { display: flex; justify-content: space-between; align-items: center; padding: 0.6rem 0; border-bottom: 1px solid #f0f0f0; font-size: 0.9rem; }
+        .mini-order-row:last-child { border-bottom: none; }
     </style>
 </head>
 <body>
@@ -56,11 +87,17 @@
         </div>
 
         <div class="content-area">
+
+            <!-- ── TAB: PRODUCTORES ── -->
             <div id="tab-producers" class="content-panel active">
-                <h2 style="margin-bottom: 2rem;">Validación de Productores</h2>
-                <div class="list-group">
+                <h2 style="margin-bottom:1.2rem;">Validación de Productores</h2>
+                <div class="search-box">
+                    <i class="fa-solid fa-magnifying-glass"></i>
+                    <input type="text" class="search-input" placeholder="Buscar por nombre, email, localidad..." oninput="filterList('tab-producers', this.value)">
+                </div>
+                <div class="list-group" id="list-tab-producers">
                     <% producers.forEach(function(p) { %>
-                        <div class="list-item" style="align-items:flex-start;">
+                        <div class="list-item" style="align-items:flex-start;" data-search="<%= (p.name + ' ' + (p.lastName||'') + ' ' + p.email + ' ' + (p.locality||'')).toLowerCase() %>">
                             <div style="display:flex; gap:1rem;">
                                 <% if(p.profileImage) { %>
                                     <img src="<%= p.profileImage %>" style="width:60px; height:60px; border-radius:50%; object-fit:cover; border:2px solid #eee; flex-shrink:0;">
@@ -70,7 +107,7 @@
                                 <div>
                                     <h4 style="margin:0 0 5px 0;"><%= p.name %> <%= p.lastName || '' %> <span style="font-size:0.9rem; color:gray; font-weight:normal;">(<%= p.email %>)</span></h4>
                                     <p style="margin:0; font-size:0.9rem; color:gray;"><i class="fa-solid fa-location-dot"></i> <%= p.locality %> | <i class="fa-solid fa-phone"></i> <%= p.phone %></p>
-                                    <% if(p.history) { %> <p style="font-size:0.85rem; margin-top:5px; color:#555;"><i>"<%= p.history %>"</i></p> <% } %>
+                                    <% if(p.history) { %><p style="font-size:0.85rem; margin-top:5px; color:#555;"><i>"<%= p.history.substring(0,120) %><%= p.history.length > 120 ? '...' : '' %>"</i></p><% } %>
                                     <% if(!p.verified) { %>
                                         <div style="margin-top:10px; background:#f9f9f9; padding:10px; border-radius:8px; border:1px solid #eee;">
                                             <p style="margin:0 0 5px 0; font-size:0.85rem;"><strong>DNI:</strong> <%= p.dni %></p>
@@ -79,7 +116,7 @@
                                     <% } %>
                                 </div>
                             </div>
-                            <div style="text-align: right; display:flex; flex-direction:column; gap:0.5rem; align-items:flex-end;">
+                            <div style="text-align:right; display:flex; flex-direction:column; gap:0.5rem; align-items:flex-end; flex-shrink:0;">
                                 <div>
                                     <% if(p.verified) { %>
                                         <span class="badge badge-success"><i class="fa-solid fa-check"></i> Verificado</span>
@@ -87,7 +124,7 @@
                                         <span class="badge badge-warning" id="badge-<%= p.id %>"><i class="fa-solid fa-clock"></i> Pendiente</span>
                                     <% } %>
                                 </div>
-                                <div style="display:flex; gap:0.5rem; margin-top:10px; align-items:center;">
+                                <div style="display:flex; gap:0.5rem; margin-top:10px; align-items:center; flex-wrap:wrap; justify-content:flex-end;">
                                     <button class="btn btn-outline" style="padding:0.3rem 0.8rem; font-size:0.8rem;" onclick="window.open('/producer-profile?id=<%= p.id %>&from=admin', '_blank')">Ver Perfil</button>
                                     <% if(!p.verified) { %>
                                         <button class="btn btn-primary" id="btn-<%= p.id %>" style="padding:0.3rem 0.8rem; background:#34495e; border:none; font-size:0.8rem;" onclick="verifyProducer(<%= p.id %>)">Aprobar</button>
@@ -105,21 +142,34 @@
                         </div>
                     <% }); %>
                     <% if(producers.length === 0) { %>
-                        <p>No hay productores en el sistema.</p>
+                        <p style="color:gray;">No hay productores en el sistema.</p>
                     <% } %>
                 </div>
+                <p class="no-results" id="no-results-tab-producers">No se encontraron productores con ese criterio.</p>
             </div>
 
+            <!-- ── TAB: CLIENTES ── -->
             <div id="tab-clients" class="content-panel">
-                <h2 style="margin-bottom: 2rem;">Perfiles de Clientes</h2>
-                <div class="list-group">
+                <h2 style="margin-bottom:1.2rem;">Perfiles de Clientes</h2>
+                <div class="search-box">
+                    <i class="fa-solid fa-magnifying-glass"></i>
+                    <input type="text" class="search-input" placeholder="Buscar por nombre o email..." oninput="filterList('tab-clients', this.value)">
+                </div>
+                <div class="list-group" id="list-tab-clients">
                     <% clients.forEach(function(c) { %>
-                        <div class="list-item">
-                            <div>
-                                <h4 style="margin:0 0 5px 0;"><%= c.name %> <%= c.lastName || '' %></h4>
-                                <p style="margin:0; font-size:0.9rem; color:gray;"><i class="fa-solid fa-envelope"></i> <%= c.email %></p>
+                        <div class="list-item" data-search="<%= (c.name + ' ' + (c.lastName||'') + ' ' + c.email).toLowerCase() %>">
+                            <div style="display:flex; align-items:center; gap:1rem;">
+                                <div style="width:44px; height:44px; border-radius:50%; background:#34495e; display:flex; align-items:center; justify-content:center; color:white; font-weight:bold; font-size:1.1rem; flex-shrink:0;">
+                                    <%= c.name.charAt(0).toUpperCase() %>
+                                </div>
+                                <div>
+                                    <h4 style="margin:0 0 3px 0;"><%= c.name %> <%= c.lastName || '' %></h4>
+                                    <p style="margin:0; font-size:0.85rem; color:gray;"><i class="fa-solid fa-envelope"></i> <%= c.email %></p>
+                                    <% if(c.created_at) { %><p style="margin:2px 0 0; font-size:0.8rem; color:#bbb;">Registrado: <%= new Date(c.created_at).toLocaleDateString('es-ES') %></p><% } %>
+                                </div>
                             </div>
-                            <div style="text-align: right;">
+                            <div style="display:flex; gap:0.5rem; align-items:center; flex-shrink:0;">
+                                <button class="btn btn-outline" style="padding:0.3rem 0.8rem; font-size:0.8rem;" onclick="openClientModal(<%= c.id %>)"><i class="fa-solid fa-eye"></i> Ver Perfil</button>
                                 <% if(c.isBlocked) { %>
                                     <button class="btn btn-outline" style="padding:0.3rem 0.8rem; font-size:0.8rem; color:green; border-color:green;" onclick="toggleBlock('cliente', <%= c.id %>, false)">Desbloquear</button>
                                 <% } else { %>
@@ -132,22 +182,33 @@
                         <p style="color:gray;">No hay clientes registrados en el sistema.</p>
                     <% } %>
                 </div>
+                <p class="no-results" id="no-results-tab-clients">No se encontraron clientes con ese criterio.</p>
             </div>
 
+            <!-- ── TAB: PEDIDOS ── -->
             <div id="tab-orders" class="content-panel">
-                <h2 style="margin-bottom: 2rem;">Monitor Global de Reservas</h2>
-                <div class="list-group">
+                <h2 style="margin-bottom:1.2rem;">Monitor Global de Reservas</h2>
+                <div class="search-box">
+                    <i class="fa-solid fa-magnifying-glass"></i>
+                    <input type="text" class="search-input" placeholder="Buscar por código QR, email, estado..." oninput="filterList('tab-orders', this.value)">
+                </div>
+                <div class="list-group" id="list-tab-orders">
                     <% orders.forEach(function(o) { %>
-                        <div class="list-item">
-                            <div>
-                                <h4 style="margin:0 0 5px 0;"><i class="fa-solid fa-qrcode"></i> <%= o.qr_code %></h4>
-                                <p style="margin:0; font-size:0.9rem; color:gray;">Artículos: <%= o.items.length %></p>
+                        <div class="list-item order-clickable"
+                             data-search="<%= (o.qr_code + ' ' + (o.client_email||'') + ' ' + o.status).toLowerCase() %>"
+                             onclick="openOrderModal(<%= o.order_id %>)">
+                            <div style="flex:1; min-width:0;">
+                                <div style="display:flex; align-items:center; gap:0.8rem; flex-wrap:wrap;">
+                                    <h4 style="margin:0;"><i class="fa-solid fa-qrcode"></i> <%= o.qr_code %></h4>
+                                    <span class="status-pill status-<%= o.status %>"><%= o.status === 'PENDING' ? 'Pendiente' : o.status === 'COMPLETED' ? 'Completado' : 'Cancelado' %></span>
+                                </div>
+                                <p style="margin:4px 0 0; font-size:0.85rem; color:gray;"><i class="fa-solid fa-envelope"></i> <%= o.client_email %></p>
+                                <p style="margin:2px 0 0; font-size:0.8rem; color:#bbb;"><i class="fa-solid fa-calendar"></i> <%= new Date(o.created_at).toLocaleDateString('es-ES', {day:'2-digit',month:'2-digit',year:'numeric'}) %> · <%= o.items.length %> artículo(s)</p>
                             </div>
-                            <div style="text-align: right;">
+                            <div style="text-align:right; flex-shrink:0; margin-left:1rem;">
                                 <strong style="font-size:1.2rem; color:var(--primary);"><%= o.total_price.toFixed(2) %>€</strong><br>
-                                <span style="font-size:0.8rem; color:gray;"><%= o.status %></span><br>
                                 <% if(o.status !== 'CANCELLED') { %>
-                                    <button class="btn btn-outline" style="padding:0.3rem 0.8rem; font-size:0.8rem; color:red; border-color:red; margin-top:5px;" onclick="cancelOrder('<%= o.order_id %>')">Cancelar</button>
+                                    <button class="btn btn-outline" style="padding:0.3rem 0.8rem; font-size:0.75rem; color:red; border-color:red; margin-top:6px;" onclick="event.stopPropagation(); cancelOrder('<%= o.order_id %>')">Cancelar</button>
                                 <% } %>
                             </div>
                         </div>
@@ -156,12 +217,32 @@
                         <p style="color:gray;">Aún no se ha realizado ninguna transacción en la plataforma.</p>
                     <% } %>
                 </div>
+                <p class="no-results" id="no-results-tab-orders">No se encontraron transacciones con ese criterio.</p>
             </div>
-            
+
+        </div>
+    </div>
+
+    <!-- ── MODAL: DETALLE DE PEDIDO ── -->
+    <div id="orderModal" class="modal-overlay" style="display:none;" onclick="closeModal('orderModal')">
+        <div class="modal-box" onclick="event.stopPropagation()">
+            <button class="modal-close" onclick="closeModal('orderModal')">×</button>
+            <div id="orderModalContent"><div style="text-align:center;padding:2rem;color:gray;"><i class="fa-solid fa-spinner fa-spin"></i> Cargando...</div></div>
+        </div>
+    </div>
+
+    <!-- ── MODAL: PERFIL DE CLIENTE ── -->
+    <div id="clientModal" class="modal-overlay" style="display:none;" onclick="closeModal('clientModal')">
+        <div class="modal-box" onclick="event.stopPropagation()">
+            <button class="modal-close" onclick="closeModal('clientModal')">×</button>
+            <div id="clientModalContent"><div style="text-align:center;padding:2rem;color:gray;"><i class="fa-solid fa-spinner fa-spin"></i> Cargando...</div></div>
         </div>
     </div>
 
     <script>
+        // Datos de pedidos embebidos para el modal
+        const ordersData = <%- JSON.stringify(orders) %>;
+
         const userStr = localStorage.getItem('km0_user');
         if (userStr) {
             const user = JSON.parse(userStr);
@@ -171,7 +252,6 @@
             window.location.href = '/login';
         }
 
-        // Cargar KPIs
         fetch('/api/admin/kpis')
         .then(r => r.json())
         .then(data => {
@@ -193,43 +273,186 @@
         function switchTab(tabId, updateHistory = true) {
             document.querySelectorAll('.content-panel').forEach(el => el.classList.remove('active'));
             document.querySelectorAll('.menu-item').forEach(el => el.classList.remove('active'));
-            
             const panel = document.getElementById(tabId);
             if (panel) panel.classList.add('active');
-            
             const menuItem = document.querySelector(`[onclick*="switchTab('${tabId}')"]`);
             if (menuItem) menuItem.classList.add('active');
-
-            if (updateHistory) {
-                history.pushState({ tab: tabId }, '', '#' + tabId);
-            }
+            if (updateHistory) history.pushState({ tab: tabId }, '', '#' + tabId);
         }
 
         window.addEventListener('popstate', (event) => {
-            if (event.state && event.state.tab) {
-                switchTab(event.state.tab, false);
-            } else {
-                const hash = window.location.hash.substring(1);
-                if (hash && document.getElementById(hash)) {
-                    switchTab(hash, false);
-                } else {
-                    switchTab('tab-producers', false); // Default for admin
-                }
-            }
+            const tab = (event.state && event.state.tab) || window.location.hash.substring(1) || 'tab-producers';
+            if (document.getElementById(tab)) switchTab(tab, false);
         });
 
         window.addEventListener('DOMContentLoaded', () => {
             const hash = window.location.hash.substring(1);
-            if (hash && document.getElementById(hash)) {
-                switchTab(hash, false);
-            } else {
-                history.replaceState({ tab: 'tab-producers' }, '', '#tab-producers');
-            }
+            if (hash && document.getElementById(hash)) switchTab(hash, false);
+            else history.replaceState({ tab: 'tab-producers' }, '', '#tab-producers');
         });
 
+        // ── Búsqueda ────────────────────────────────────────────────
+        function filterList(tabId, query) {
+            const list = document.getElementById('list-' + tabId);
+            const noResults = document.getElementById('no-results-' + tabId);
+            const q = query.toLowerCase().trim();
+            let visible = 0;
+            list.querySelectorAll('.list-item').forEach(item => {
+                const match = !q || (item.dataset.search || item.textContent.toLowerCase()).includes(q);
+                item.style.display = match ? '' : 'none';
+                if (match) visible++;
+            });
+            noResults.style.display = (q && visible === 0) ? 'block' : 'none';
+        }
+
+        // ── Modal helpers ───────────────────────────────────────────
+        function closeModal(id) {
+            document.getElementById(id).style.display = 'none';
+        }
+
+        function statusLabel(s) {
+            return s === 'PENDING' ? 'Pendiente' : s === 'COMPLETED' ? 'Completado' : 'Cancelado';
+        }
+
+        function fmtDate(d) {
+            return new Date(d).toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+        }
+
+        // ── Modal: Detalle de Pedido ────────────────────────────────
+        function openOrderModal(orderId) {
+            const o = ordersData.find(x => x.order_id === orderId);
+            if (!o) return;
+            document.getElementById('orderModal').style.display = 'flex';
+
+            const items = (o.items || []).filter(i => i && i.name);
+            const itemsRows = items.map(i => {
+                const qty = i.qty || 1;
+                const price = parseFloat(i.price) || 0;
+                return `<tr>
+                    <td>${i.name}</td>
+                    <td style="text-align:center;">${qty}</td>
+                    <td style="text-align:right;">${price.toFixed(2)}€</td>
+                    <td style="text-align:right; font-weight:600;">${(price * qty).toFixed(2)}€</td>
+                </tr>`;
+            }).join('');
+
+            const rejectionHtml = o.rejection_reason
+                ? `<div style="background:#fde8e8; padding:0.8rem 1rem; border-radius:8px; border-left:3px solid #e74c3c; margin-top:0.8rem; font-size:0.9rem;">
+                    <strong style="color:#c0392b;">Motivo de rechazo:</strong> ${o.rejection_reason}
+                   </div>` : '';
+
+            document.getElementById('orderModalContent').innerHTML = `
+                <div style="display:flex; align-items:center; gap:1rem; margin-bottom:1.5rem; flex-wrap:wrap;">
+                    <div>
+                        <h2 style="margin:0; font-size:1.3rem;"><i class="fa-solid fa-qrcode"></i> ${o.qr_code}</h2>
+                        <p style="margin:4px 0 0; color:gray; font-size:0.85rem;">Pedido #${o.order_id}</p>
+                    </div>
+                    <span class="status-pill status-${o.status}">${statusLabel(o.status)}</span>
+                </div>
+
+                <div class="modal-section">
+                    <h4><i class="fa-solid fa-info-circle"></i> Información</h4>
+                    <div style="display:grid; grid-template-columns:1fr 1fr; gap:0.5rem; font-size:0.9rem;">
+                        <div><span style="color:gray;">Cliente:</span><br><strong>${o.client_email || '–'}</strong></div>
+                        <div><span style="color:gray;">Fecha:</span><br><strong>${fmtDate(o.created_at)}</strong></div>
+                    </div>
+                </div>
+
+                <div class="modal-section">
+                    <h4><i class="fa-solid fa-box"></i> Artículos</h4>
+                    <table class="items-table">
+                        <thead>
+                            <tr>
+                                <th>Producto</th>
+                                <th style="text-align:center;">Uds.</th>
+                                <th style="text-align:right;">P. unit.</th>
+                                <th style="text-align:right;">Total</th>
+                            </tr>
+                        </thead>
+                        <tbody>${itemsRows || '<tr><td colspan="4" style="color:gray;padding:0.5rem 0;">Sin artículos</td></tr>'}</tbody>
+                    </table>
+                </div>
+
+                <div style="display:flex; justify-content:flex-end; padding-top:0.8rem; border-top:2px solid #eee; margin-top:0.5rem;">
+                    <span style="font-size:1.3rem; font-weight:800; color:var(--primary);">Total: ${parseFloat(o.total_price).toFixed(2)}€</span>
+                </div>
+                ${rejectionHtml}
+                ${o.status !== 'CANCELLED' ? `<div style="text-align:right; margin-top:1rem;">
+                    <button class="btn btn-outline" style="color:red; border-color:red; font-size:0.85rem;" onclick="cancelOrder('${o.order_id}')">Cancelar pedido</button>
+                </div>` : ''}
+            `;
+        }
+
+        // ── Modal: Perfil de Cliente ────────────────────────────────
+        function openClientModal(clientId) {
+            document.getElementById('clientModal').style.display = 'flex';
+            document.getElementById('clientModalContent').innerHTML = '<div style="text-align:center;padding:2rem;color:gray;"><i class="fa-solid fa-spinner fa-spin"></i> Cargando...</div>';
+
+            fetch('/api/admin/client/' + clientId)
+            .then(r => r.json())
+            .then(data => {
+                if (!data.success) { document.getElementById('clientModalContent').innerHTML = '<p style="color:red;text-align:center;">Error cargando el perfil.</p>'; return; }
+                const c = data.client;
+                const orders = data.orders || [];
+                const completedOrders = orders.filter(o => o.status === 'COMPLETED');
+                const totalSpent = completedOrders.reduce((s, o) => s + parseFloat(o.total_price), 0);
+
+                const avatarHtml = c.profileImage
+                    ? `<img src="${c.profileImage}" class="client-avatar">`
+                    : `<div class="client-avatar-placeholder">${c.name.charAt(0).toUpperCase()}</div>`;
+
+                const ordersHtml = orders.length === 0
+                    ? '<p style="color:gray;font-size:0.9rem;">Sin pedidos registrados.</p>'
+                    : orders.map(o => `
+                        <div class="mini-order-row">
+                            <div>
+                                <span style="font-size:0.85rem; font-weight:600;">${o.qr_code}</span><br>
+                                <span style="font-size:0.78rem; color:gray;">${fmtDate(o.created_at)}</span>
+                            </div>
+                            <div style="text-align:right;">
+                                <span class="status-pill status-${o.status}" style="font-size:0.72rem;">${statusLabel(o.status)}</span><br>
+                                <strong style="font-size:0.9rem;">${parseFloat(o.total_price).toFixed(2)}€</strong>
+                            </div>
+                        </div>`).join('');
+
+                document.getElementById('clientModalContent').innerHTML = `
+                    <div style="display:flex; align-items:center; gap:1.2rem; margin-bottom:1.5rem;">
+                        ${avatarHtml}
+                        <div>
+                            <h2 style="margin:0 0 4px;">${c.name} ${c.lastName || ''}</h2>
+                            <p style="margin:0; color:gray; font-size:0.9rem;"><i class="fa-solid fa-envelope"></i> ${c.email}</p>
+                            ${c.created_at ? `<p style="margin:3px 0 0; font-size:0.8rem; color:#bbb;">Registrado: ${new Date(c.created_at).toLocaleDateString('es-ES')}</p>` : ''}
+                            ${c.isBlocked ? '<span class="badge badge-danger" style="margin-top:5px; display:inline-block;">Bloqueado</span>' : ''}
+                        </div>
+                    </div>
+
+                    <div style="display:grid; grid-template-columns:repeat(3,1fr); gap:0.8rem; margin-bottom:1.5rem; text-align:center;">
+                        <div style="background:#f9f9f9; padding:0.8rem; border-radius:10px;">
+                            <div style="font-size:1.5rem; font-weight:800; color:#34495e;">${orders.length}</div>
+                            <div style="font-size:0.75rem; color:gray;">Pedidos totales</div>
+                        </div>
+                        <div style="background:#f9f9f9; padding:0.8rem; border-radius:10px;">
+                            <div style="font-size:1.5rem; font-weight:800; color:#2ecc71;">${completedOrders.length}</div>
+                            <div style="font-size:0.75rem; color:gray;">Completados</div>
+                        </div>
+                        <div style="background:#f9f9f9; padding:0.8rem; border-radius:10px;">
+                            <div style="font-size:1.3rem; font-weight:800; color:#1a7a3a;">${totalSpent.toFixed(2)}€</div>
+                            <div style="font-size:0.75rem; color:gray;">Gasto total</div>
+                        </div>
+                    </div>
+
+                    <div class="modal-section">
+                        <h4><i class="fa-solid fa-receipt"></i> Historial de Pedidos</h4>
+                        <div style="max-height:220px; overflow-y:auto;">${ordersHtml}</div>
+                    </div>
+                `;
+            })
+            .catch(() => { document.getElementById('clientModalContent').innerHTML = '<p style="color:red;text-align:center;">Error de conexión.</p>'; });
+        }
+
+        // ── Acciones existentes ─────────────────────────────────────
         function verifyProducer(id) {
             if(!confirm('¿Estás seguro de verificar la veracidad de los documentos de este productor?')) return;
-            
             fetch('/api/producers/' + id + '/verify', { method: 'POST' })
             .then(r => r.json())
             .then(data => {

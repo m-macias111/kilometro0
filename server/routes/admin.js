@@ -77,4 +77,36 @@ router.get('/api/admin/kpis', requireAuth('admin'), async (req, res) => {
     }
 });
 
+// ── GET /api/admin/client/:id — perfil + pedidos de un cliente ───
+router.get('/api/admin/client/:id', requireAuth('admin'), async (req, res) => {
+    const id = parseInt(req.params.id);
+    if (!id) return res.status(400).json({ success: false });
+    try {
+        const [clientResult, ordersResult] = await Promise.all([
+            pool.query(
+                `SELECT id, name, last_name AS "lastName", email, profile_image AS "profileImage",
+                        is_blocked AS "isBlocked", created_at
+                 FROM users WHERE id = $1 AND role = 'CLIENT'`,
+                [id]
+            ),
+            pool.query(
+                `SELECT o.id AS order_id, o.qr_code, o.status, o.total_price, o.created_at, o.rejection_reason,
+                        json_agg(json_build_object('name', oi.product_name, 'price', oi.unit_price, 'qty', oi.quantity)) AS items
+                 FROM orders o
+                 LEFT JOIN order_items oi ON oi.order_id = o.id
+                 WHERE o.client_id = $1
+                 GROUP BY o.id ORDER BY o.created_at DESC`,
+                [id]
+            )
+        ]);
+        if (!clientResult.rows[0]) return res.status(404).json({ success: false });
+        const client = clientResult.rows[0];
+        const orders = ordersResult.rows.map(o => ({ ...o, total_price: parseFloat(o.total_price) }));
+        res.json({ success: true, client, orders });
+    } catch (err) {
+        console.error('Error admin/client:', err.message);
+        res.status(500).json({ success: false });
+    }
+});
+
 module.exports = router;

@@ -255,13 +255,14 @@ router.get('/admin-app', async (req, res) => {
         }));
 
         const clientsResult = await pool.query(
-            'SELECT id, name, last_name AS "lastName", email, is_blocked AS "isBlocked" FROM users WHERE role = \'CLIENT\' ORDER BY id'
+            `SELECT id, name, last_name AS "lastName", email, is_blocked AS "isBlocked", created_at
+             FROM users WHERE role = 'CLIENT' ORDER BY id`
         );
         const clients = clientsResult.rows;
 
         const ordersResult = await pool.query(
-            `SELECT o.id AS order_id, o.qr_code, o.status, o.total_price, o.client_email, o.created_at,
-                    json_agg(json_build_object('name', oi.product_name, 'price', oi.unit_price)) AS items
+            `SELECT o.id AS order_id, o.qr_code, o.status, o.total_price, o.client_email, o.client_id, o.created_at, o.rejection_reason,
+                    json_agg(json_build_object('name', oi.product_name, 'price', oi.unit_price, 'qty', oi.quantity)) AS items
              FROM orders o
              LEFT JOIN order_items oi ON oi.order_id = o.id
              GROUP BY o.id
