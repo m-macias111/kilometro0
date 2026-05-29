@@ -246,12 +246,15 @@ router.get('/admin-app', async (req, res) => {
         const producersResult = await pool.query(
             `SELECT id, name, last_name AS "lastName", email, phone, locality,
                     profile_image AS "profileImage", history, status, is_blocked AS "isBlocked",
-                    dni, cadastral_ref AS "catastral"
+                    dni, cadastral_ref AS "catastral",
+                    ST_Y(location::geometry) AS lat, ST_X(location::geometry) AS lng
              FROM users WHERE role = 'PRODUCER' ORDER BY id`
         );
         const producers = producersResult.rows.map(p => ({
             ...p,
-            verified: p.status === 'VERIFIED'
+            verified: p.status === 'VERIFIED',
+            lat: p.lat ? parseFloat(p.lat) : null,
+            lng: p.lng ? parseFloat(p.lng) : null
         }));
 
         const clientsResult = await pool.query(

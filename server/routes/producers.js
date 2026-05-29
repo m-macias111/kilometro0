@@ -35,11 +35,24 @@ router.get('/api/producers/by-email', async (req, res) => {
 
 // ── POST /api/producers/:id/verify — solo admin ──────────────────
 router.post('/api/producers/:id/verify', requireAuth('admin'), async (req, res) => {
+    const { lat, lng } = req.body;
     try {
-        const result = await pool.query(
-            "UPDATE users SET status = 'VERIFIED' WHERE id = $1 AND role = 'PRODUCER' RETURNING id",
-            [req.params.id]
-        );
+        let result;
+        if (lat !== undefined && lng !== undefined) {
+            result = await pool.query(
+                `UPDATE users 
+                 SET status = 'VERIFIED',
+                     location = ST_SetSRID(ST_MakePoint($1, $2), 4326)
+                 WHERE id = $3 AND role = 'PRODUCER' 
+                 RETURNING id`,
+                [parseFloat(lng), parseFloat(lat), req.params.id]
+            );
+        } else {
+            result = await pool.query(
+                "UPDATE users SET status = 'VERIFIED' WHERE id = $1 AND role = 'PRODUCER' RETURNING id",
+                [req.params.id]
+            );
+        }
         if (result.rowCount === 0) return res.status(404).json({ success: false });
         res.json({ success: true });
     } catch (err) {

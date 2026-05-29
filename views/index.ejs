@@ -75,8 +75,12 @@
                     </div>
                     <div style="display:flex; align-items:center; gap:15px;">
                         <button class="btn" id="locationBtn" onclick="getUserLocation()" style="white-space:nowrap; background:rgba(255,255,255,0.2); color:white; border:1px solid rgba(255,255,255,0.4); padding:0.4rem 0.8rem; border-radius:8px; font-weight:600; font-size:0.85rem;"><i class="fa-solid fa-location-crosshairs"></i> Mi Ubicación</button>
-                        <label for="distanceFilter" style="white-space:nowrap; font-weight:bold; font-size:0.85rem; color:white;">Radio: <span id="distanceValue">200</span> km</label>
-                        <input type="range" id="distanceFilter" min="1" max="200" step="1" value="200" style="flex:1; accent-color:#8fff8f;" oninput="document.getElementById('distanceValue').innerText=this.value; updateDistanceCircle(); applyFilters();">
+                        <div style="display:flex; align-items:center; gap:6px;">
+                            <input type="checkbox" id="useDistanceFilter" onchange="updateDistanceCircle(); applyFilters();" style="accent-color:#8fff8f;">
+                            <label for="useDistanceFilter" style="white-space:nowrap; font-weight:bold; font-size:0.85rem; color:white; cursor:pointer;">Limitar área</label>
+                        </div>
+                        <label for="distanceFilter" style="white-space:nowrap; font-weight:bold; font-size:0.85rem; color:white; margin-left:10px;">Radio: <span id="distanceValue">700</span> km</label>
+                        <input type="range" id="distanceFilter" min="1" max="700" step="1" value="700" style="flex:1; accent-color:#8fff8f;" oninput="document.getElementById('distanceValue').innerText=this.value; document.getElementById('useDistanceFilter').checked=true; updateDistanceCircle(); applyFilters();">
                     </div>
                 </div>
                 
@@ -472,9 +476,17 @@
 
         function updateDistanceCircle() {
             if (!hasUserLocation) return;
+            const useFilter = document.getElementById('useDistanceFilter').checked;
             const km = parseInt(document.getElementById('distanceFilter').value);
+            
+            if (!useFilter) {
+                if (distanceCircle) map.removeLayer(distanceCircle);
+                return;
+            }
+
             if (distanceCircle) {
                 distanceCircle.setLatLng([userLat, userLng]).setRadius(km * 1000);
+                if (!map.hasLayer(distanceCircle)) distanceCircle.addTo(map);
             } else {
                 distanceCircle = L.circle([userLat, userLng], {
                     radius: km * 1000,
@@ -636,7 +648,8 @@
 
             // Filter producers by distance
             let filteredProducers = producersData;
-            if (hasUserLocation) {
+            const useFilter = document.getElementById('useDistanceFilter').checked;
+            if (hasUserLocation && useFilter) {
                 filteredProducers = filteredProducers.filter(p => getDistance(userLat, userLng, p.lat, p.lng) <= maxDistance);
             }
 
@@ -653,7 +666,7 @@
             renderMarkers(filteredProducers);
 
             // Filter products grid
-            const allProducersInRange = hasUserLocation ? producersData.filter(p => getDistance(userLat, userLng, p.lat, p.lng) <= maxDistance) : producersData;
+            const allProducersInRange = (hasUserLocation && useFilter) ? producersData.filter(p => getDistance(userLat, userLng, p.lat, p.lng) <= maxDistance) : producersData;
             const validIds = allProducersInRange.map(p => p.id);
             let filtered = productsData.filter(p => validIds.includes(p.producer_id));
             if (currentCategory !== 'Todas') filtered = filtered.filter(p => p.category === currentCategory);

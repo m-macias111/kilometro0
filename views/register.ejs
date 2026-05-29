@@ -90,7 +90,8 @@
                 </div>
                 <div class="form-group">
                     <label>Referencia Catastral</label>
-                    <input type="text" id="catastral" placeholder="XXXXX...">
+                    <input type="text" id="catastral" placeholder="XXXXX..." style="text-transform: uppercase;">
+                    <small id="catastralError" style="color:red; display:none; margin-top:0.5rem;"></small>
                 </div>
                 <div class="form-group">
                     <label>Dirección (Carretera y km / Calle y número)</label>
@@ -206,7 +207,18 @@
             .then(r => r.json())
             .then(data => {
                 if(!data.success) {
-                    alert('Error al registrarse: ' + data.message);
+                    if (data.message && data.message.includes('Referencia') || data.message.includes('Catastral') || data.message.includes('catastral')) {
+                        const ce = document.getElementById('catastralError');
+                        if (ce) {
+                            ce.innerText = data.message;
+                            ce.style.display = 'block';
+                            document.getElementById('catastral').focus();
+                        } else {
+                            alert('Error: ' + data.message);
+                        }
+                    } else {
+                        alert('Error al registrarse: ' + data.message);
+                    }
                     return;
                 }
                 localStorage.setItem('km0_user', JSON.stringify({ email: email, name: name, role: role }));

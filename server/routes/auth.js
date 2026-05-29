@@ -6,6 +6,7 @@ const crypto = require('crypto');
 const pool = require('../config/db');
 const emailService = require('../config/email');
 const { JWT_SECRET } = require('../middleware/auth');
+const { validateCadastralRef } = require('../config/catastro');
 
 const SALT_ROUNDS = 10;
 
@@ -64,6 +65,11 @@ router.post('/api/register', async (req, res) => {
         const hash = await bcrypt.hash(password, SALT_ROUNDS);
 
         if (role === 'productor') {
+            const catValidation = await validateCadastralRef(catastral);
+            if (!catValidation.valid) {
+                return res.json({ success: false, message: catValidation.error });
+            }
+
             const result = await pool.query(
                 `INSERT INTO users (role, name, last_name, email, password_hash, phone, locality, status, dni, cadastral_ref)
                  VALUES ('PRODUCER', $1, $2, $3, $4, $5, $6, 'UNVERIFIED', $7, $8)
@@ -158,6 +164,23 @@ router.post('/api/auth/reset-password', async (req, res) => {
     } catch (err) {
         console.error('Error reset-password:', err.message);
         res.status(500).json({ success: false, message: 'Error del servidor.' });
+    }
+});
+
+// ── POST /api/user/profile-image ────────────────────────────────
+router.post('/api/user/profile-image', async (req, res) => {
+    const user = req.getSessionUser();
+    if (!user) return res.status(401).json({ success: false, message: 'No autenticado.' });
+
+    const { imageBase64 } = req.body;
+    if (!imageBase64) return res.status(400).json({ success: false, message: 'No se envió imagen' });
+
+    try {
+        await pool.query('UPDATE users SET profile_image = $1 WHERE id = $2', [imageBase64, user.id]);
+        res.json({ success: true, profileImage: imageBase64 });
+    } catch (err) {
+        console.error('Error guardando imagen en DB:', err.message);
+        res.status(500).json({ success: false, message: 'Error interno guardando la foto.' });
     }
 });
 

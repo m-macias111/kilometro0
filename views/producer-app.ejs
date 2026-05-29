@@ -143,8 +143,15 @@
                     <small id="locationMsg" style="color:var(--primary); font-weight:600; display:none; margin-top:0.3rem;">¡Ubicación guardada!</small>
                 </div>
                 <div class="form-group">
-                    <label>Foto de Perfil (URL de imagen)</label>
-                    <input type="text" id="editProfileImage" value="<%= producer.profileImage || '' %>" placeholder="https://..." oninput="updatePreview()">
+                    <label>Elige tu Foto de Perfil</label>
+                    <div style="display:flex; gap:0.8rem; margin-bottom:1rem; flex-wrap:wrap;">
+                        <% const avatars = ['avatar_apple_1780078871676.png', 'avatar_barn_1780078838567.png', 'avatar_carrot_1780078885502.png', 'avatar_cow_1780078897770.png', 'avatar_farmer_hat_1780078860028.png', 'avatar_tractor_1780078821751.png']; %>
+                        <% avatars.forEach(av => { %>
+                            <img src="/img/avatars/<%= av %>" style="width:50px; height:50px; border-radius:50%; cursor:pointer; border:2px solid transparent; transition:0.2s;" onmouseover="this.style.borderColor='var(--primary)'" onmouseout="this.style.borderColor='transparent'" onclick="selectDefaultAvatar('/img/avatars/<%= av %>', 'profileMsg')">
+                        <% }); %>
+                    </div>
+                    <label style="color:gray; font-size:0.85rem; display:block; margin-bottom:0.5rem;">O sube la tuya propia desde el ordenador:</label>
+                    <input type="file" id="editProfileImageFile" accept="image/*" onchange="uploadProfileImage(this, 'profileMsg')">
                 </div>
                 <div class="form-group">
                     <label>Historia de la Granja</label>
@@ -348,15 +355,8 @@
 
         // ── Profile Preview ──────────────────────────────────────
         function updatePreview() {
-            const img = document.getElementById('editProfileImage').value.trim();
             const locality = document.getElementById('editLocality').value.trim();
             const history = document.getElementById('editHistory').value.trim();
-            const previewImgEl = document.getElementById('previewImg');
-            if (img) {
-                previewImgEl.innerHTML = `<img src="${img}" style="width:100%; height:100%; object-fit:cover;" onerror="this.style.display='none'">`;
-            } else {
-                previewImgEl.innerHTML = `<i class="fa-solid fa-tractor" style="color:white; font-size:1.5rem;"></i>`;
-            }
             document.getElementById('previewLocality').innerHTML = `<i class="fa-solid fa-location-dot" style="color:var(--primary);"></i> ${locality || '–'}`;
             document.getElementById('previewHistory').innerText = history || 'Sin descripción';
         }
@@ -368,14 +368,65 @@
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     locality: document.getElementById('editLocality').value,
-                    profileImage: document.getElementById('editProfileImage').value,
                     history: document.getElementById('editHistory').value
                 })
             }).then(r => r.json()).then(data => {
                 if (data.success) {
                     const msg = document.getElementById('profileMsg');
+                    msg.innerText = '¡Guardado!';
                     msg.style.display = 'inline';
                     setTimeout(() => msg.style.display = 'none', 3000);
+                }
+            });
+        }
+
+        function uploadProfileImage(input, msgId) {
+            const file = input.files[0];
+            if (!file) return;
+            const msg = document.getElementById(msgId);
+            msg.innerText = 'Subiendo...';
+            msg.style.display = 'inline-block';
+            
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const base64 = e.target.result;
+                fetch('/api/user/profile-image', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ imageBase64: base64 })
+                }).then(r => r.json()).then(data => {
+                    if (data.success) {
+                        msg.innerText = '¡Foto actualizada!';
+                        msg.style.color = 'var(--primary)';
+                        setTimeout(() => window.location.reload(), 1000);
+                    } else {
+                        msg.innerText = 'Error: ' + data.message;
+                        msg.style.color = 'red';
+                    }
+                }).catch(() => {
+                    msg.innerText = 'Error de conexión';
+                    msg.style.color = 'red';
+                });
+            };
+            reader.readAsDataURL(file);
+        }
+
+        function selectDefaultAvatar(url, msgId) {
+            const msg = document.getElementById(msgId);
+            msg.innerText = 'Guardando...';
+            msg.style.display = 'inline-block';
+            fetch('/api/user/profile-image', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ imageBase64: url })
+            }).then(r => r.json()).then(data => {
+                if (data.success) {
+                    msg.innerText = '¡Foto actualizada!';
+                    msg.style.color = 'var(--primary)';
+                    setTimeout(() => window.location.reload(), 1000);
+                } else {
+                    msg.innerText = 'Error: ' + data.message;
+                    msg.style.color = 'red';
                 }
             });
         }
@@ -589,13 +640,7 @@
                 locationMarker = L.marker([initLat, initLng]).addTo(locationMap);
             }
 
-            locationMap.on('click', function(e) {
-                const { lat, lng } = e.latlng;
-                if (locationMarker) locationMap.removeLayer(locationMarker);
-                locationMarker = L.marker([lat, lng]).addTo(locationMap);
-                document.getElementById('locationLat').value = lat.toFixed(6);
-                document.getElementById('locationLng').value = lng.toFixed(6);
-            });
+            // El mapa es de solo lectura. El administrador fija la ubicación basándose en la Ref. Catastral.
         }
 
         if (window.location.hash === '#tab-profile') {

@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const pool = require('../config/db');
 const { requireAuth } = require('../middleware/auth');
+const { getCadastralCoords } = require('../config/catastro');
 
 // ── POST /api/admin/block — bloquear/desbloquear usuario ─────────
 router.post('/api/admin/block', requireAuth('admin'), async (req, res) => {
@@ -50,6 +51,17 @@ router.post('/api/admin/cancel-order', requireAuth('admin'), async (req, res) =>
     } catch (err) {
         console.error('Error admin/cancel-order:', err.message);
         res.status(500).json({ success: false });
+    }
+});
+
+// ── GET /api/admin/catastro-coords/:rc ───────────────────────────
+router.get('/api/admin/catastro-coords/:rc', requireAuth('admin'), async (req, res) => {
+    try {
+        const coords = await getCadastralCoords(req.params.rc);
+        res.json(coords);
+    } catch (err) {
+        console.error('Error admin/catastro-coords:', err.message);
+        res.status(500).json({ success: false, error: 'Error interno del servidor.' });
     }
 });
 

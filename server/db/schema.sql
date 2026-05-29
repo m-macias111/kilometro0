@@ -24,7 +24,7 @@ CREATE TABLE IF NOT EXISTS users (
     dni             VARCHAR(50),
     cadastral_ref   VARCHAR(255),
     history         TEXT,
-    profile_image   VARCHAR(500),
+    profile_image   TEXT,
     location        GEOMETRY(Point, 4326),
     created_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
