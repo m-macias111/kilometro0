@@ -52,7 +52,7 @@
 <body>
     <div class="dashboard">
         <div class="side-nav">
-            <div class="logo">
+            <div class="logo" <% if(from !== 'admin') { %>onclick="window.location.href='/'" style="cursor:pointer;" title="Volver a la tienda"<% } %>>
                 <i class="fa-solid fa-<%= from === 'admin' ? 'shield-halved' : 'leaf' %>"></i>
                 <span>Kilómetro 0</span>
             </div>
@@ -112,6 +112,12 @@
                         <div class="produce-card">
                             <span class="card-badge"><%= p.category || 'Producto' %></span>
                             <span class="card-price"><%= p.price.toFixed(2) %>€</span>
+                            <% if(from !== 'admin') { %>
+                                <button id="fav-btn-<%= p.id %>" onclick="toggleFavorite(<%= p.id %>, this)" title="Guardar en favoritos"
+                                    style="position:absolute; top:12px; right:60px; background:rgba(0,0,0,0.5); border:none; border-radius:50%; width:32px; height:32px; cursor:pointer; color:rgba(255,255,255,0.8); z-index:10; display:flex; align-items:center; justify-content:center; padding:0;">
+                                    <i class="fa-regular fa-heart"></i>
+                                </button>
+                            <% } %>
                             <img src="<%= p.image_url %>" alt="<%= p.name %>">
                             <div class="produce-info">
                                 <h4><%= p.name %></h4>
@@ -198,7 +204,25 @@
         </div>
         <div class="cart-footer" id="cartFooter">
             <h3 style="display: flex; justify-content: space-between; margin-bottom: 1rem;">Total: <span id="cartTotal">0.00€</span></h3>
-            <button class="btn btn-primary" style="width: 100%;" onclick="checkout()">Tramitar Reserva</button>
+            <button class="btn btn-primary" style="width: 100%;" onclick="showCheckoutConfirm()">Tramitar Reserva</button>
+        </div>
+    </div>
+
+    <!-- Confirmation Modal -->
+    <div id="confirmModal" style="position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); z-index:4000; display:none; justify-content:center; align-items:center; backdrop-filter:blur(3px);">
+        <div style="background:white; padding:2rem; border-radius:16px; width:100%; max-width:460px; box-shadow:0 20px 60px rgba(0,0,0,0.2); max-height:90vh; overflow-y:auto;">
+            <h2 style="margin-bottom:0.5rem;"><i class="fa-solid fa-clipboard-check" style="color:var(--primary);"></i> Confirmar Reserva</h2>
+            <p style="color:gray; font-size:0.9rem; margin-bottom:1.5rem;">Revisa tu pedido antes de confirmar.</p>
+            <div id="confirmItems"></div>
+            <div style="background:#f0fff0; border-radius:10px; padding:1rem; margin-top:1rem;">
+                <div style="display:flex; justify-content:space-between; font-size:1.1rem; font-weight:800; color:var(--primary);">
+                    <span>Total</span><span id="confirmTotal"></span>
+                </div>
+            </div>
+            <div style="display:flex; gap:0.75rem; margin-top:1.5rem;">
+                <button class="btn btn-outline" style="flex:1;" onclick="closeConfirmModal()"><i class="fa-solid fa-arrow-left"></i> Volver</button>
+                <button class="btn btn-primary" style="flex:2;" onclick="checkout()"><i class="fa-solid fa-paper-plane"></i> Confirmar y Tramitar</button>
+            </div>
         </div>
     </div>
 
@@ -258,6 +282,44 @@
         }
 
         <% if(from !== 'admin') { %>
+        // === FAVORITOS ===
+        let userFavorites = new Set();
+        const _userStr = localStorage.getItem('km0_user');
+        const currentUser = _userStr ? JSON.parse(_userStr) : null;
+
+        if (currentUser && currentUser.role === 'cliente') {
+            fetch('/api/favorites')
+            .then(r => r.json())
+            .then(data => {
+                if (data.favorites) data.favorites.forEach(f => {
+                    userFavorites.add(f.id);
+                    const btn = document.getElementById('fav-btn-' + f.id);
+                    if (btn) { btn.style.color = '#e74c3c'; btn.querySelector('i').className = 'fa-solid fa-heart'; }
+                });
+            }).catch(() => {});
+        }
+
+        function toggleFavorite(productId, btn) {
+            if (!currentUser || currentUser.role !== 'cliente') { window.location.href = '/login'; return; }
+            fetch('/api/favorites/toggle', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ product_id: productId })
+            }).then(r => r.json()).then(data => {
+                if (data.success) {
+                    if (data.action === 'added') {
+                        userFavorites.add(productId);
+                        btn.style.color = '#e74c3c';
+                        btn.querySelector('i').className = 'fa-solid fa-heart';
+                    } else {
+                        userFavorites.delete(productId);
+                        btn.style.color = 'rgba(255,255,255,0.8)';
+                        btn.querySelector('i').className = 'fa-regular fa-heart';
+                    }
+                }
+            });
+        }
+
         function showToast(msg, isError=false) {
             const t = document.getElementById('toast');
             t.innerText = msg;
@@ -274,38 +336,98 @@
 
         function addToCart(id) {
             const product = productsData.find(p => p.id === id);
-            if(!product) return;
+            if (!product) return;
             product.producer_name = product.producer_name || producerName;
-            cart.push(product);
+            const hasStock = product.stock !== null && product.stock !== undefined;
+            if (hasStock && product.stock <= 0) return showToast(product.name + ' está agotado', true);
+            const existing = cart.find(c => c.id === id);
+            const currentQty = existing ? (existing.qty || 1) : 0;
+            if (hasStock && currentQty + 1 > product.stock) {
+                return showToast('Solo quedan ' + product.stock + ' unidad(es) de ' + product.name, true);
+            }
+            if (existing) {
+                existing.qty = currentQty + 1;
+            } else {
+                cart.push({ ...product, qty: 1 });
+            }
             localStorage.setItem('km0_cart', JSON.stringify(cart));
             updateCartUI();
             showToast('Producto añadido a la cesta');
         }
 
+        function changeQty(id, delta) {
+            const item = cart.find(c => c.id === id);
+            if (!item) return;
+            const product = productsData.find(p => p.id === id);
+            const hasStock = product && product.stock !== null && product.stock !== undefined;
+            const newQty = (item.qty || 1) + delta;
+            if (delta > 0 && hasStock && newQty > product.stock) {
+                return showToast('Solo quedan ' + product.stock + ' unidad(es) de ' + item.name, true);
+            }
+            item.qty = newQty;
+            if (item.qty <= 0) cart = cart.filter(c => c.id !== id);
+            localStorage.setItem('km0_cart', JSON.stringify(cart));
+            updateCartUI();
+        }
+
         function updateCartUI() {
-            const counts = [document.getElementById('cartCount'), document.getElementById('floatingBadge')];
-            counts.forEach(el => { if(el) el.innerText = cart.length; });
+            const totalItems = cart.reduce((s, p) => s + (p.qty || 1), 0);
+            [document.getElementById('cartCount'), document.getElementById('floatingBadge')].forEach(el => { if (el) el.innerText = totalItems; });
             document.getElementById('floatingCartBtn').style.display = cart.length > 0 ? 'flex' : 'none';
 
             const body = document.getElementById('cartItems');
-            if(cart.length === 0) {
+            if (cart.length === 0) {
                 body.innerHTML = '<p style="color:gray;">Tu cesta está vacía.</p>';
+                document.getElementById('cartTotal').innerText = '0.00€';
                 document.getElementById('cartFooter').style.display = '';
             } else {
                 let html = '', total = 0;
                 cart.forEach(p => {
-                    total += p.price;
-                    html += `<div class="cart-item"><div><h4 style="margin:0;">${p.name}</h4><span style="font-size:0.8rem; color:gray;">${p.producer_name}</span></div><div style="font-weight:bold; color:var(--primary);">${p.price.toFixed(2)}€</div></div>`;
+                    const qty = p.qty || 1;
+                    const lineTotal = p.price * qty;
+                    total += lineTotal;
+                    html += `<div class="cart-item">
+                        <div style="flex:1;">
+                            <h4 style="margin:0 0 2px;">${p.name}</h4>
+                            <span style="font-size:0.8rem; color:gray;">${p.producer_name}</span>
+                        </div>
+                        <div style="display:flex; align-items:center; gap:6px;">
+                            <button onclick="changeQty(${p.id},-1)" style="background:#eee; border:none; border-radius:4px; width:24px; height:24px; cursor:pointer; font-size:1rem; display:flex; align-items:center; justify-content:center;">−</button>
+                            <span style="font-weight:700; min-width:16px; text-align:center;">${qty}</span>
+                            <button onclick="changeQty(${p.id},1)" style="background:#eee; border:none; border-radius:4px; width:24px; height:24px; cursor:pointer; font-size:1rem; display:flex; align-items:center; justify-content:center;">+</button>
+                        </div>
+                        <div style="font-weight:bold; color:var(--primary); margin-left:10px; min-width:54px; text-align:right;">${lineTotal.toFixed(2)}€</div>
+                    </div>`;
                 });
                 body.innerHTML = html;
                 document.getElementById('cartTotal').innerText = total.toFixed(2) + '€';
             }
         }
 
+        function showCheckoutConfirm() {
+            if (cart.length === 0) return showToast('La cesta está vacía', true);
+            const total = cart.reduce((s, p) => s + p.price * (p.qty || 1), 0);
+            const itemsHtml = cart.map(p => {
+                const qty = p.qty || 1;
+                return `<div style="display:flex; justify-content:space-between; padding:0.5rem 0; border-bottom:1px dashed #eee; font-size:0.88rem;">
+                    <span><b>${p.name}</b> <span style="color:gray;">× ${qty}</span></span>
+                    <span style="font-weight:700; color:var(--primary);">${(p.price * qty).toFixed(2)}€</span>
+                </div>`;
+            }).join('');
+            document.getElementById('confirmItems').innerHTML = itemsHtml;
+            document.getElementById('confirmTotal').innerText = total.toFixed(2) + '€';
+            document.getElementById('confirmModal').style.display = 'flex';
+        }
+
+        function closeConfirmModal() {
+            document.getElementById('confirmModal').style.display = 'none';
+        }
+
         function checkout() {
-            if(cart.length === 0) return showToast('La cesta está vacía', true);
+            closeConfirmModal();
+            if (cart.length === 0) return showToast('La cesta está vacía', true);
             const u = localStorage.getItem('km0_user');
-            if(u) {
+            if (u) {
                 processOrder(JSON.parse(u).email);
             } else {
                 document.getElementById('cartItems').innerHTML = `
@@ -326,7 +448,7 @@
         function submitGuestOrder() {
             const email = document.getElementById('guestEmail').value;
             const emailConfirm = document.getElementById('guestEmailConfirm').value;
-            if(!email || email !== emailConfirm || !/^[^@]+@[^@]+\.[a-zA-Z]{2,}$/.test(email)) {
+            if (!email || email !== emailConfirm || !/^[^@]+@[^@]+\.[a-zA-Z]{2,}$/.test(email)) {
                 document.getElementById('guestEmailError').style.display = 'block';
                 return;
             }
@@ -339,28 +461,28 @@
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ items: cart, client_email })
             }).then(r => r.json()).then(data => {
-                const fecha = new Date().toLocaleDateString('es-ES', { day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit' });
-                const qrPayload = JSON.stringify({
-                    ref: data.qr_code,
-                    txId: data.order_id,
-                    cliente: client_email,
-                    articulos: cart.map(p => ({ nombre: p.name, productor: p.producer_name, precio: p.price.toFixed(2) })),
-                    total: cart.reduce((s, p) => s + p.price, 0).toFixed(2),
-                    fecha
-                });
-
-                const itemsHtml = cart.map(p =>
-                    `<div style="display:flex; justify-content:space-between; padding:0.4rem 0; border-bottom:1px dashed #eee; font-size:0.85rem;">
-                        <span><b>${p.name}</b> <span style="color:gray;">· ${p.producer_name}</span></span>
-                        <span style="font-weight:700; color:var(--primary);">${p.price.toFixed(2)}€</span>
-                    </div>`
-                ).join('');
-                const total = cart.reduce((s, p) => s + p.price, 0);
+                if (!data.success) {
+                    showToast(data.message || 'No se pudo tramitar el pedido', true);
+                    if (data.product_id) {
+                        const prod = productsData.find(p => p.id === data.product_id);
+                        if (prod && data.available !== undefined) prod.stock = data.available;
+                        updateCartUI();
+                    }
+                    return;
+                }
+                const qrPayload = data.qr_payload;
+                const total = cart.reduce((s, p) => s + p.price * (p.qty || 1), 0);
+                const itemsHtml = cart.map(p => {
+                    const qty = p.qty || 1;
+                    return `<div style="display:flex; justify-content:space-between; padding:0.4rem 0; border-bottom:1px dashed #eee; font-size:0.85rem;">
+                        <span><b>${p.name}</b> × ${qty} <span style="color:gray;">· ${p.producer_name}</span></span>
+                        <span style="font-weight:700; color:var(--primary);">${(p.price * qty).toFixed(2)}€</span>
+                    </div>`;
+                }).join('');
 
                 const emailNote = data.emailPreviewUrl
                     ? `<div style="background:#fff3cd; padding:12px; border-radius:8px; margin-top:1rem; border:1px solid #ffc107;">
-                        <p style="margin:0; font-size:0.85rem; color:#856404;"><i class="fa-solid fa-flask"></i> <b>Modo de pruebas:</b> El correo no llega a tu buzón real. Puedes verlo aquí:</p>
-                        <a href="${data.emailPreviewUrl}" target="_blank" style="display:block; text-align:center; margin-top:8px; background:#1a7a3a; color:white; padding:10px; border-radius:8px; text-decoration:none; font-weight:700;"><i class="fa-solid fa-envelope-open-text"></i> Ver Email de Confirmación</a>
+                        <p style="margin:0; font-size:0.85rem; color:#856404;"><i class="fa-solid fa-flask"></i> <b>Modo de pruebas:</b> <a href="${data.emailPreviewUrl}" target="_blank" style="color:#856404; font-weight:700;">Ver email de confirmación</a></p>
                        </div>`
                     : `<p style="margin-top:1rem; font-size:0.85rem; color:gray;"><i class="fa-solid fa-check-circle" style="color:var(--primary);"></i> Email enviado a <b>${client_email}</b></p>`;
 
@@ -373,7 +495,7 @@
                         <div style="display:flex; justify-content:center; margin:1rem 0;"><div id="qrcode-container" style="padding:12px; background:white; border-radius:12px; box-shadow:0 5px 15px rgba(0,0,0,0.05); display:inline-block;"></div></div>
                         <div style="background:#f9f9f9; border-radius:10px; padding:1rem; font-size:0.85rem; margin-bottom:1rem;">
                             <div style="display:flex; justify-content:space-between; margin-bottom:0.5rem;">
-                                <span style="color:gray;"><i class="fa-solid fa-hashtag"></i> ID Transacción</span>
+                                <span style="color:gray;"><i class="fa-solid fa-hashtag"></i> Referencia</span>
                                 <span style="font-weight:700; font-family:monospace;">${data.qr_code}</span>
                             </div>
                             <div style="display:flex; justify-content:space-between; margin-bottom:0.8rem;">
@@ -391,16 +513,19 @@
                         </div>
                         ${emailNote}
                     </div>`;
-                new QRCode(document.getElementById("qrcode-container"), { text: qrPayload, width: 160, height: 160, colorDark: "#1a7a3a", colorLight: "#ffffff", correctLevel: QRCode.CorrectLevel.M });
                 document.getElementById('cartFooter').style.display = 'none';
                 document.getElementById('floatingCartBtn').style.display = 'none';
                 cart = [];
                 localStorage.removeItem('km0_cart');
-                document.getElementById('cartCount').innerText = '0';
+                if (qrPayload) {
+                    setTimeout(() => {
+                        const qrEl = document.getElementById('qrcode-container');
+                        if (qrEl) new QRCode(qrEl, { text: qrPayload, width: 160, height: 160, colorDark: '#1a7a3a', colorLight: '#ffffff', correctLevel: QRCode.CorrectLevel.M });
+                    }, 50);
+                }
             });
         }
-        
-        // Initial setup
+
         updateCartUI();
         <% } %>
     </script>

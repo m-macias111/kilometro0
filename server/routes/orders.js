@@ -19,6 +19,32 @@ router.post('/api/orders', async (req, res) => {
     try {
         await client.query('BEGIN');
 
+        // Validar stock disponible (bloqueando las filas para evitar carreras)
+        for (const item of items) {
+            if (!item.id) continue;
+            const qty = parseInt(item.qty) || 1;
+            const stockResult = await client.query(
+                'SELECT name, stock FROM products WHERE id = $1 FOR UPDATE',
+                [item.id]
+            );
+            if (stockResult.rows.length === 0) {
+                await client.query('ROLLBACK');
+                return res.status(400).json({ success: false, message: `El producto "${item.name}" ya no está disponible.` });
+            }
+            const { name, stock } = stockResult.rows[0];
+            if (stock !== null && qty > stock) {
+                await client.query('ROLLBACK');
+                return res.status(409).json({
+                    success: false,
+                    message: stock <= 0
+                        ? `"${name}" está agotado.`
+                        : `Solo quedan ${stock} unidad(es) de "${name}". Reduce la cantidad en tu cesta.`,
+                    product_id: item.id,
+                    available: stock
+                });
+            }
+        }
+
         let client_id = null;
         const effectiveEmail = (sessionUser && sessionUser.role === 'cliente') ? sessionUser.email : client_email;
         if (sessionUser && sessionUser.role === 'cliente') {
@@ -51,7 +77,7 @@ router.post('/api/orders', async (req, res) => {
         );
         const dbOrderId = orderResult.rows[0].id;
 
-        // Insertar líneas de pedido (con cantidad)
+        // Insertar líneas de pedido (con cantidad) y descontar stock
         for (const item of items) {
             const qty = parseInt(item.qty) || 1;
             await client.query(
@@ -59,6 +85,12 @@ router.post('/api/orders', async (req, res) => {
                  VALUES ($1, $2, $3, $4, $5)`,
                 [dbOrderId, item.id || null, item.name, qty, parseFloat(item.price)]
             );
+            if (item.id) {
+                await client.query(
+                    'UPDATE products SET stock = stock - $1 WHERE id = $2 AND stock IS NOT NULL',
+                    [qty, item.id]
+                );
+            }
         }
 
         await client.query('COMMIT');

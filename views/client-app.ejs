@@ -40,9 +40,9 @@
 </head>
 <body>
     <nav class="navbar" style="position:static; background:linear-gradient(90deg, #1a7a3a, #145a2b);">
-        <div class="logo" style="color:white;">
+        <div class="logo" style="color:white; cursor:pointer;" onclick="window.location.href='/'" title="Volver a la tienda">
             <i class="fa-solid fa-leaf" style="color:#8fff8f;"></i>
-            <span style="color:white;">Mi Cuenta</span>
+            <span style="color:white;">Kilómetro 0</span>
         </div>
         <div class="nav-links" style="display:flex; align-items:center; gap:0.75rem;">
             <div onclick="switchTab('tab-profile')" title="Mi perfil" style="display:flex; align-items:center; gap:0.6rem; cursor:pointer; padding:0.4rem 0.8rem; border-radius:30px; background:rgba(255,255,255,0.15); transition:0.2s;" onmouseover="this.style.background='rgba(255,255,255,0.25)'" onmouseout="this.style.background='rgba(255,255,255,0.15)'">
@@ -133,7 +133,7 @@
                             <% if(o.status === 'PENDING') { %>
                                 <div style="display:flex; gap:0.5rem; margin-top:1rem; flex-wrap:wrap;">
                                     <% if(o.qr_payload) { %>
-                                        <div class="qr-display" onclick="showQR('<%= encodeURIComponent(o.qr_payload) %>')" style="flex:1; min-width:180px;">
+                                        <div class="qr-display" onclick="showQR(<%= o.order_id %>)" style="flex:1; min-width:180px;">
                                             <i class="fa-solid fa-qrcode"></i> Ver Código QR
                                             <p style="font-size:0.75rem; font-weight:400; margin:4px 0 0; color:#555;">Muéstralo al productor al recoger</p>
                                         </div>
@@ -259,7 +259,7 @@
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
     <script>
-        // Datos de favoritos embebidos para "añadir al carrito"
+        const ordersData = <%- JSON.stringify(orders) %>;
         const favoritesData = <%- JSON.stringify(favorites) %>;
 
         function doLogout() {
@@ -313,16 +313,13 @@
         }
 
         // ── Modal QR ──────────────────────────────────────────────
-        function showQR(encodedPayload) {
-            const payload = decodeURIComponent(encodedPayload);
+        function showQR(orderId) {
+            const order = ordersData.find(o => o.order_id === orderId);
+            if (!order || !order.qr_payload) return;
+            const payload = order.qr_payload;
             const container = document.getElementById('qrModalCode');
-            container.innerHTML = '';
-            new QRCode(container, {
-                text: payload,
-                width: 220, height: 220,
-                colorDark: '#1a7a3a', colorLight: '#ffffff',
-                correctLevel: QRCode.CorrectLevel.M
-            });
+            const qrUrl = 'https://api.qrserver.com/v1/create-qr-code/?size=220x220&margin=0&data=' + encodeURIComponent(payload);
+            container.innerHTML = '<img src="' + qrUrl + '" alt="Código QR" width="220" height="220" style="border-radius:8px;">';
             try {
                 const parsed = JSON.parse(payload);
                 document.getElementById('qrModalRef').innerText = parsed.ref || payload;
